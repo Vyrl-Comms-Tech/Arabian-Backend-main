@@ -11,13 +11,18 @@ const getPropertyModelByOfferingType = (offeringType) => {
   
   switch (offeringType?.toUpperCase()) {
     case 'RS': // Sale Property
+    case 'Sale': // Sale Property
+    case 'SALE': // Sale Property
       console.log("Using SaleProperty model");
       return SaleProperty;
-    case 'RR': // Rent Property
+    case 'RR':
+    case "Rent": // Rent Property
+    case "RENT": // Rent Property
       console.log("Using RentProperty model");
       return RentProperty;
     case 'CS': // Commercial Sale
     case 'CR': // Commercial Rent
+    case 'Commercial': // Commercial Rent
       console.log("Using CommercialProperty model");
       return CommercialProperty;
     default: // OffPlan or any other type
@@ -81,7 +86,7 @@ const enhancedSpecializedFilter = async (req, res) => {
     if (location && location.trim() !== "") {
       const searchTerm = location.trim();
       console.log("Adding location filter for:", searchTerm);
-      filterQuery["custom_fields.full_address"] = {
+      filterQuery["custom_fields.pba__addresstext_pb"] = {
         $regex: searchTerm,
         $options: "i",
       };
@@ -617,8 +622,7 @@ const specializedFilter = async (req, res) => {
 const filterByLocation = async (req, res) => {
   try {
     const location = req.query.location;
-    const offeringType = req.query.offeringType || "RS"; // Default to Sale
-    
+    const offeringType = req.query.offeringType || "RS"; 
     const PropertyModel = getPropertyModelByOfferingType(offeringType);
     const collectionName = getCollectionName(offeringType);
 
@@ -700,13 +704,13 @@ const filterByLocation = async (req, res) => {
 // Updated getAddressSuggestions
 const getAddressSuggestions = async (req, res) => {
   try {
-    const offeringType = req.query.offeringType || req.query.type || "RS"; // Default to Sale
+    const offeringType = req.query.offeringType || "RS"; // Default to Sale
     const PropertyModel = getPropertyModelByOfferingType(offeringType);
     const collectionName = getCollectionName(offeringType);
     
     const prefix = req.query.prefix;
     const maxSuggestions = 5;
-
+    console.log("Working")
     if (!prefix) {
       return res.status(400).json({
         success: false,
@@ -724,14 +728,15 @@ const getAddressSuggestions = async (req, res) => {
 
     console.log(`Getting address suggestions for prefix: "${prefix}" from ${collectionName} properties`);
 
-    // UPDATED: Remove status filter since all properties in collections are now Live
+    // UPDATED: Use new address field and remove status filter
     const primaryQuery = {
-      "custom_fields.full_address": { $regex: new RegExp(`\\b${prefix}`, "i") },
+      "custom_fields.pba__addresstext_pb": { $regex: new RegExp(`\\b${prefix}`, "i") },
     };
 
+    // FIXED: Select the correct address field
     const properties = await PropertyModel.find(primaryQuery)
       .limit(100)
-      .select("custom_fields.full_address");
+      .select("custom_fields.pba__addresstext_pb"); // Changed from "custom_fields.full_address"
 
     console.log(`Found ${properties.length} ${collectionName} properties matching primary query`);
 
@@ -753,8 +758,8 @@ const getAddressSuggestions = async (req, res) => {
     };
 
     properties.forEach((property) => {
-      if (property.custom_fields?.full_address) {
-        processAddress(property.custom_fields.full_address);
+      if (property.custom_fields?.pba__addresstext_pb) {
+        processAddress(property.custom_fields.pba__addresstext_pb);
         if (suggestions.size >= maxSuggestions) return;
       }
     });
