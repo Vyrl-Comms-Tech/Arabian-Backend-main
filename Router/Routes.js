@@ -1,12 +1,13 @@
 // const getAllProperties = require("../Controllers/allPropertiesController");
 const PropertyController=require("../Controllers/allPropertiesController")
-const getSaleProperties = require("../Controllers/salePropertiesController");
-const RentProperties = require("../Controllers/rentPropertiesController");
-const getSingleProperty = require("../Controllers/GetSingleProperty");
+
+// const getSaleProperties = require("../Controllers/salePropertiesController");
+// const RentProperties = require("../Controllers/rentPropertiesController");
+// const getSingleProperty = require("../Controllers/GetSingleProperty");
 const ParseXml = require("../Controllers/XmlParser");
 const AllFilter = require("../Controllers/UniversalFilter");
 const ListProperty = require("../Controllers/PropertyListing");
-const OffPlanProperties = require("../Controllers/OffplanPropertyController");
+// const OffPlanProperties = require("../Controllers/OffplanPropertyController");
 const NewOffPlanProperties = require("../Controllers/NewOffplanController");
 const ReferProperties = require("../Controllers/ReferPropertyController");
 const ContactUs = require('../Controllers/Contact');
@@ -80,11 +81,11 @@ router.get('/DeleteContact', ContactUs.deleteContact);
 
 // Properties Api's
 // router.get("/all-properties", PropertyController.getAllProperties);
-router.get("/sale-properties", getSaleProperties);
-router.get("/rent-properties", RentProperties.getRentProperties);
+// router.get("/sale-properties", getSaleProperties);
+// router.get("/rent-properties", RentProperties.getRentProperties);
 
 // Offplan Property Api's
-router.get("/offplan-property", OffPlanProperties.GetOffPlanProperties);
+// router.get("/offplan-property", OffPlanProperties.GetOffPlanProperties);
 router.get("/single-property", PropertyController);
 
 

@@ -1,4 +1,4 @@
-const CommunityGuide = require('../models/CommunityGuideModel');
+// const CommunityGuide = require('../models/CommunityGuideModel');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs').promises;
