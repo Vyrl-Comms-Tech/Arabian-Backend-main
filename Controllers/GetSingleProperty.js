@@ -23,7 +23,7 @@ const getSingleProperty = async (req, res) => {
     let property = null;
     
     // Search based on property type
-    if (PropertyType === "RS") {
+    if (PropertyType === "RS" || PropertyType=="Sale") {
       // Sale Property
       property = await SaleProperty.findOne({ id: PropertyId });
       console.log("Searching in Sale collection:", property);
@@ -37,7 +37,7 @@ const getSingleProperty = async (req, res) => {
         });
       }
       
-    } else if (PropertyType === "RR") {
+    } else if (PropertyType === "RR"|| PropertyType=="Rent" ) {
       // Rent Property
       property = await RentProperty.findOne({ id: PropertyId });
       console.log("Searching in Rent collection:", property);
@@ -51,7 +51,7 @@ const getSingleProperty = async (req, res) => {
         });
       }
       
-    } else if (PropertyType === "CS" || PropertyType === "CR") {
+    } else if (PropertyType === "CS" || PropertyType === "CR" || PropertyType=="Commercial" ) {
       // Commercial Property (both sale and rent)
       property = await CommercialProperty.findOne({ id: PropertyId });
       console.log("Searching in Commercial collection:", property);

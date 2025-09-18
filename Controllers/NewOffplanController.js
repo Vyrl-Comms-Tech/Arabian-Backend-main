@@ -340,7 +340,132 @@ const getSIngleOffplanProperty = async (req, res) => {
 };
 
 
+const getOffPlanAddressSuggestions = async (req, res) => {
+  try {
+    const prefix = req.query.prefix;
+    const maxSuggestions = parseInt(req.query.limit) || 8;
 
+
+    // Validation
+    if (!prefix) {
+      return res.status(400).json({
+        success: false,
+        message: "Prefix parameter is required"
+      });
+    }
+
+    if (prefix.length < 2) {
+      return res.json({
+        success: true,
+        message: "Prefix too short for meaningful search",
+        data: [],
+        count: 0,
+        debug: {
+          prefix: prefix,
+          minLength: 2
+        }
+      });
+    }
+
+    const query = {
+      "name": { 
+        $regex: new RegExp(`\\b${prefix}`, "i") // Word boundary search, case insensitive
+      }
+    };
+
+    console.log("MongoDB query:", JSON.stringify(query, null, 2));
+
+    // Find matching off-plan properties
+    const properties = await OffPlanProperty.find(query)
+      .limit(maxSuggestions * 2) // Get more results to have variety
+      .select("name area developer") // Select only needed fields for suggestions
+      .lean();
+
+    console.log(`Found ${properties.length} off-plan properties matching query`);
+
+    // Create suggestions set to avoid duplicates
+    const suggestions = new Set();
+    
+    // Process each property name
+    properties.forEach((property) => {
+      if (property.name && property.name.trim()) {
+        const projectName = property.name.trim();
+        
+        // Check if the project name contains the prefix (case insensitive)
+        if (projectName.toLowerCase().includes(prefix.toLowerCase())) {
+          suggestions.add(projectName);
+        }
+        
+        // Stop if we have enough suggestions
+        if (suggestions.size >= maxSuggestions) return;
+      }
+    });
+
+    // Convert to array and sort
+    let suggestionsArray = Array.from(suggestions);
+    
+    // Sort suggestions for better user experience:
+    // 1. Exact matches first
+    // 2. Names starting with prefix
+    // 3. Names containing prefix
+    // 4. Alphabetically within each group
+    suggestionsArray.sort((a, b) => {
+      const aLower = a.toLowerCase();
+      const bLower = b.toLowerCase();
+      const prefixLower = prefix.toLowerCase();
+      
+      // Check for exact match
+      const aExact = aLower === prefixLower;
+      const bExact = bLower === prefixLower;
+      if (aExact && !bExact) return -1;
+      if (!aExact && bExact) return 1;
+      
+      // Check for starts with
+      const aStarts = aLower.startsWith(prefixLower);
+      const bStarts = bLower.startsWith(prefixLower);
+      if (aStarts && !bStarts) return -1;
+      if (!aStarts && bStarts) return 1;
+      
+      // Check for word boundary match at start
+      const aWordStart = aLower.match(new RegExp(`^${prefixLower}\\b`));
+      const bWordStart = bLower.match(new RegExp(`^${prefixLower}\\b`));
+      if (aWordStart && !bWordStart) return -1;
+      if (!aWordStart && bWordStart) return 1;
+      
+      // Sort by length (shorter first)
+      if (a.length !== b.length) return a.length - b.length;
+      
+      // Finally sort alphabetically
+      return a.localeCompare(b);
+    });
+
+    // Limit to requested number
+    suggestionsArray = suggestionsArray.slice(0, maxSuggestions);
+
+    console.log(`Returning ${suggestionsArray.length} project name suggestions`);
+
+    return res.status(200).json({
+      success: true,
+      message: `Found ${suggestionsArray.length} off-plan project suggestions for "${prefix}"`,
+      count: suggestionsArray.length,
+      data: suggestionsArray,
+      debug: {
+        prefix: prefix,
+        totalPropertiesFound: properties.length,
+        uniqueSuggestions: suggestionsArray.length
+      }
+    });
+
+  } catch (error) {
+    console.error("Error in getOffPlanAddressSuggestions:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Failed to get off-plan project suggestions",
+      error: error.message,
+      data: []
+    });
+  }
+};
 // Get current sync status
 const getSyncStatus = async (req, res) => {
   try {
@@ -493,10 +618,21 @@ const FilterDeveloperOffplanProperty = async (req, res) => {
 };
 
 
+
 const filterByMinPrice = async (req, res) => {
   try {
     const { minPrice } = req.query;
     const { page = 1, limit = 10 } = req.query;
+
+    console.log("MinPrice", minPrice);
+
+    // Check if minPrice parameter exists
+    if (!minPrice) {
+      return res.status(400).json({
+        success: false,
+        message: "MinPrice parameter is required",
+      });
+    }
 
     const filter = {
       minPriceAed: { $gte: parseInt(minPrice) }
@@ -506,27 +642,64 @@ const filterByMinPrice = async (req, res) => {
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
+    // Get total count first
+    const totalCount = await OffPlanProperty.countDocuments(filter);
+    console.log("Total matching properties:", totalCount);
+
+    // Execute the main query
     const properties = await OffPlanProperty.find(filter)
       .sort({ minPriceAed: 1 }) // Sort by price ascending
       .skip(skip)
       .limit(limitNum)
       .lean();
 
-    const totalCount = await OffPlanProperty.countDocuments(filter);
+    console.log("Found properties count:", properties.length);
 
+    // Process the properties to match your expected format
     const processedProperties = properties.map(property => ({
       ...property,
-      formattedPrice: `AED ${property.minPriceAed?.toLocaleString()}`,
+      formattedPrice: property.minPriceAed 
+        ? `AED ${property.minPriceAed.toLocaleString()}` 
+        : "Price on Request",
+      formattedMaxPrice: property.maxPrice 
+        ? `AED ${property.maxPrice.toLocaleString()}` 
+        : null,
+      priceRange: property.minPriceAed 
+        ? (property.maxPrice && property.maxPrice !== property.minPriceAed
+          ? `AED ${property.minPriceAed.toLocaleString()} - ${property.maxPrice.toLocaleString()}`
+          : `AED ${property.minPriceAed.toLocaleString()}`)
+        : "Price on Request",
       mainImageUrl: property.coverImage?.url || null,
       id: property._id.toString()
     }));
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Response matching your expected format
     res.status(200).json({
       success: true,
-      message: `Properties with minimum price AED ${parseInt(minPrice).toLocaleString()}`,
+      message: totalCount > 0 
+        ? `Properties with minimum price AED ${parseInt(minPrice).toLocaleString()} fetched successfully`
+        : `No properties found with minimum price AED ${parseInt(minPrice).toLocaleString()}`,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        totalMatchingProperties: totalCount,
+        totalAllProperties: await OffPlanProperty.countDocuments({}),
+        filteredProperties: totalCount,
+        perPage: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      },
+      count: processedProperties.length,
       data: processedProperties,
-      totalCount,
-      filteredByMinPrice: parseInt(minPrice)
+      // Debug info (remove in production)
+      debug: {
+        requestedMinPrice: parseInt(minPrice),
+        filterUsed: filter
+      }
     });
 
   } catch (error) {
@@ -534,55 +707,94 @@ const filterByMinPrice = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error filtering by minimum price",
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
-
 
 const filterByMaxPrice = async (req, res) => {
   try {
     const { maxPrice } = req.query;
     const { page = 1, limit = 10 } = req.query;
 
+    console.log("MaxPrice", maxPrice);
+
+    // Check if maxPrice parameter exists
+    if (!maxPrice) {
+      return res.status(400).json({
+        success: false,
+        message: "MaxPrice parameter is required",
+      });
+    }
+
+    // Correct filter - use minPriceAed since that's where the actual price data is
     const filter = {
-      $or: [
-        { minPriceAed: { $lte: parseInt(maxPrice) } },
-        { 
-          maxPrice: { 
-            $exists: true, 
-            $ne: null, 
-            $lte: parseInt(maxPrice) 
-          } 
-        }
-      ]
+      minPriceAed: { $lte: parseInt(maxPrice) }
     };
 
     const pageNum = parseInt(page);
     const limitNum = parseInt(limit);
     const skip = (pageNum - 1) * limitNum;
 
+    // Get total count first
+    const totalCount = await OffPlanProperty.countDocuments(filter);
+    console.log("Total matching properties:", totalCount);
+
+    // Execute the main query
     const properties = await OffPlanProperty.find(filter)
       .sort({ minPriceAed: 1 })
       .skip(skip)
       .limit(limitNum)
       .lean();
 
-    const totalCount = await OffPlanProperty.countDocuments(filter);
+    console.log("Found properties count:", properties.length);
 
+    // Process the properties to match your expected format
     const processedProperties = properties.map(property => ({
       ...property,
-      formattedPrice: `AED ${property.minPriceAed?.toLocaleString()}`,
+      formattedPrice: property.minPriceAed 
+        ? `AED ${property.minPriceAed.toLocaleString()}` 
+        : "Price on Request",
+      formattedMaxPrice: property.maxPrice 
+        ? `AED ${property.maxPrice.toLocaleString()}` 
+        : null,
+      priceRange: property.minPriceAed 
+        ? (property.maxPrice && property.maxPrice !== property.minPriceAed
+          ? `AED ${property.minPriceAed.toLocaleString()} - ${property.maxPrice.toLocaleString()}`
+          : `AED ${property.minPriceAed.toLocaleString()}`)
+        : "Price on Request",
       mainImageUrl: property.coverImage?.url || null,
       id: property._id.toString()
     }));
 
+    // Calculate pagination info
+    const totalPages = Math.ceil(totalCount / limitNum);
+
+    // Response matching your expected format
     res.status(200).json({
       success: true,
-      message: `Properties with maximum price AED ${parseInt(maxPrice).toLocaleString()}`,
+      message: totalCount > 0 
+        ? `Properties with maximum price AED ${parseInt(maxPrice).toLocaleString()} fetched successfully`
+        : `No properties found with maximum price AED ${parseInt(maxPrice).toLocaleString()}`,
+      pagination: {
+        currentPage: pageNum,
+        totalPages: totalPages,
+        totalCount: totalCount,
+        totalMatchingProperties: totalCount,
+        totalAllProperties: await OffPlanProperty.countDocuments({}),
+        filteredProperties: totalCount,
+        perPage: limitNum,
+        hasNextPage: pageNum < totalPages,
+        hasPrevPage: pageNum > 1
+      },
+      count: processedProperties.length,
       data: processedProperties,
-      totalCount,
-      filteredByMaxPrice: parseInt(maxPrice)
+      // Debug info (remove in production)
+      debug: {
+        requestedMaxPrice: parseInt(maxPrice),
+        filterUsed: filter
+      }
     });
 
   } catch (error) {
@@ -590,11 +802,11 @@ const filterByMaxPrice = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Error filtering by maximum price",
-      error: error.message
+      error: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 };
-
 // const OffPlanAddressSuggestion=async(req,res)=>{
 //   try{
 //     const {prefix}=req.query
@@ -627,7 +839,7 @@ const filterByMaxPrice = async (req, res) => {
 // }
 
 
-const OffPlanAddressSuggestion = async (req, res) => {
+const OffSearchProperty = async (req, res) => {
   try {
     const { prefix, limit = 5 } = req.query;
     const minSuggestions = parseInt(limit);
@@ -680,13 +892,16 @@ const OffPlanAddressSuggestion = async (req, res) => {
 
 
 
+
+
 module.exports = {
   fetchAndSaveProperties,
+  getOffPlanAddressSuggestions,
   getNewOffPlanProperties,
   getSyncStatus,
   getSIngleOffplanProperty,
   FilterDeveloperOffplanProperty,
   filterByMinPrice,
   filterByMaxPrice,
-  OffPlanAddressSuggestion
+  OffSearchProperty
 };

@@ -1,4 +1,5 @@
-const getAllProperties = require("../Controllers/allPropertiesController");
+// const getAllProperties = require("../Controllers/allPropertiesController");
+const PropertyController=require("../Controllers/allPropertiesController")
 const getSaleProperties = require("../Controllers/salePropertiesController");
 const RentProperties = require("../Controllers/rentPropertiesController");
 const getSingleProperty = require("../Controllers/GetSingleProperty");
@@ -12,6 +13,7 @@ const ContactUs = require('../Controllers/Contact');
 const Blogs = require("../Controllers/BlogController");
 const CommunityGuides = require('../Controllers/CommunityGuideController');
 const Podcast = require("../Controllers/PodcastController");
+// 
 
 // Import Agent Controller
 const AgentController = require("../Controllers/AgentController");
@@ -77,13 +79,13 @@ router.get('/GetContact', ContactUs.getContacts);
 router.get('/DeleteContact', ContactUs.deleteContact);
 
 // Properties Api's
-router.get("/all-properties", getAllProperties);
+// router.get("/all-properties", PropertyController.getAllProperties);
 router.get("/sale-properties", getSaleProperties);
 router.get("/rent-properties", RentProperties.getRentProperties);
 
 // Offplan Property Api's
 router.get("/offplan-property", OffPlanProperties.GetOffPlanProperties);
-router.get("/single-property", getSingleProperty);
+router.get("/single-property", PropertyController);
 
 
 // New API for offplan properties
@@ -93,7 +95,8 @@ router.get("/get-offplan-single-property", NewOffPlanProperties.getSIngleOffplan
 router.get("/offplanfilterbydeveloper", NewOffPlanProperties.FilterDeveloperOffplanProperty);
 router.get("/offplanminprice", NewOffPlanProperties.filterByMinPrice);
 router.get("/offplanmaxprice", NewOffPlanProperties.filterByMaxPrice);
-router.get("/OffPlanAddressSuggestion", NewOffPlanProperties.OffPlanAddressSuggestion);
+router.get("/OffPlanLocation", NewOffPlanProperties.OffSearchProperty);
+router.get("/OffPlanLocationSuggestion", NewOffPlanProperties.getOffPlanAddressSuggestions);
 
 // Refer Property Api's
 router.post("/ReferProperty", ReferProperties.ReferProperty);
@@ -106,7 +109,8 @@ router.get("/Delete-Refer-Lead", ReferProperties.deleteQuery);
 router.get("/GetBlogs", Blogs.GetAllBlogs);
 router.get("/SingleBlog", Blogs.getSingleBlog);
 router.get("/DeleteBlog", Blogs.deleteBlog);
-router.post("/Addblog", upload.single("image"), Blogs.createBlog);
+// router.post("/Addblog", upload.single("image"), Blogs.createBlog);
+router.post("/Addblog", Blogs.createBlog);
 router.post("/UpdateBlog", upload.single("image"), Blogs.updateBlog);
 
 // Podcast Api's
@@ -120,9 +124,14 @@ router.get("/DeletePodcast", Podcast.deletePodcast);
 
 
 // Universal filter for All property pages section
-router.get("/Universal-filter", AllFilter.enhancedSpecializedFilter);
+// router.get("/Universal-filter", AllFilter.enhancedSpecializedFilter);
+// New universal filter
+
+router.get("/Universal-filter", AllFilter.UniversalSpecializedFilter);
+
+
 router.get("/Sort-Properties", AllFilter.SortProperties);
-router.get("/Location-filter-property", AllFilter.filterByLocation);
+// router.get("/Location-filter-property", AllFilter.filterByLocation);
 router.get("/Similar-property", AllFilter.filterByCommunity);
 router.get("/Property-location-suggestions", AllFilter.getAddressSuggestions);
 
@@ -303,7 +312,7 @@ router.get("/agents/admin/performance", async (req, res) => {
 */
 
 // Hero Section filter
-router.get("/All-Hero-filters", AllFilter.specializedFilter);
+// router.get("/All-Hero-filters", AllFilter.specializedFilter);
 
 // Property Listing route (Post Route for listing property)
 router.post("/list-property", ListProperty);
