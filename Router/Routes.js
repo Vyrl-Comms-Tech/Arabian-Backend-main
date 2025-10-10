@@ -124,6 +124,7 @@ router.get("/DeleteBlog", Blogs.deleteBlog);
 router.post("/Addblog", Blogs.upload.single("image"), Blogs.createBlog); // Use Blogs.upload
 router.post("/UpdateBlog", Blogs.upload.single("image"), Blogs.updateBlog); // Use Blogs.upload
 
+
 // Community Guideline 
 // Community Guide Routes
 // Community Guide Routes
