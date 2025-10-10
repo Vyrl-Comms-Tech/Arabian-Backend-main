@@ -12,8 +12,10 @@ const NewOffPlanProperties = require("../Controllers/NewOffplanController");
 const ReferProperties = require("../Controllers/ReferPropertyController");
 const ContactUs = require('../Controllers/Contact');
 const Blogs = require("../Controllers/BlogController");
+const News = require("../Controllers/NewsController");
 const CommunityGuides = require('../Controllers/CommunityGuideController');
 const Podcast = require("../Controllers/PodcastController");
+const HeroController = require("../Controllers/HeroContentController");
 // 
 
 // Import Agent Controller
@@ -74,6 +76,15 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 },
 });
 
+// Hero Content
+router.get('/get-hero', HeroController.getHero)
+router.post('/add-replace', HeroController.upload.single('media'), HeroController.addOrReplaceHero)
+router.put('/update', HeroController.upload.single('media'), HeroController.updateHero)
+
+
+
+
+
 // Contact us
 router.post('/Contact', ContactUs.createContact);
 router.get('/GetContact', ContactUs.getContacts);
@@ -110,15 +121,43 @@ router.get("/Delete-Refer-Lead", ReferProperties.deleteQuery);
 router.get("/GetBlogs", Blogs.GetAllBlogs);
 router.get("/SingleBlog", Blogs.getSingleBlog);
 router.get("/DeleteBlog", Blogs.deleteBlog);
-// router.post("/Addblog", upload.single("image"), Blogs.createBlog);
-router.post("/Addblog", Blogs.createBlog);
-router.post("/UpdateBlog", upload.single("image"), Blogs.updateBlog);
+router.post("/Addblog", Blogs.upload.single("image"), Blogs.createBlog); // Use Blogs.upload
+router.post("/UpdateBlog", Blogs.upload.single("image"), Blogs.updateBlog); // Use Blogs.upload
+
+// Community Guideline 
+// Community Guide Routes
+// Community Guide Routes
+// Community Guide Routes (Simplified)
+router.get("/GetCommunityGuides", CommunityGuides.getAllCommunityGuides);
+// router.get("/GetPublishedCommunityGuides", CommunityGuides.getPublishedCommunityGuides);
+router.get("/SingleCommunityGuide", CommunityGuides.getSingleCommunityGuide);
+router.get("/DeleteCommunityGuide", CommunityGuides.deleteCommunityGuide);
+router.post("/AddCommunityGuide", CommunityGuides.uploadMultiple, CommunityGuides.createCommunityGuide);
+router.post("/UpdateCommunityGuide", CommunityGuides.uploadMultiple, CommunityGuides.updateCommunityGuide);
+
+
+// Community Guideline Api's
+// router.get("/GetCommunityGuides", CommunityGuides.GetAllCommunityGuides);
+// router.get("/SingleCommunityGuide", CommunityGuides.getSingleCommunityGuide);
+// router.get("/DeleteCommunityGuide", CommunityGuides.deleteCommunityGuide);
+// router.post("/AddCommunityGuide", CommunityGuides.upload.single("image"), CommunityGuides.createCommunityGuide);
+// router.post("/UpdateCommunityGuide", CommunityGuides.upload.single("image"), CommunityGuides.updateCommunityGuide);
+
+
+
+
+// News Routes
+router.get("/GetNews", News.GetAllNews);
+router.get("/SingleNews", News.getSingleNews);
+router.get("/DeleteNews", News.deleteNews);
+router.post("/AddNews", News.upload.single("image"), News.createNews);
+router.post("/UpdateNews", News.upload.single("image"), News.updateNews);
 
 // Podcast Api's
-router.get("/CreatePodcast", Podcast.createPodcast);
+router.post("/CreatePodcast", Podcast.createPodcast);
 router.get("/AllPodcasts", Podcast.getAllPodcasts);
 router.get("/SinglePodcast", Podcast.getPodcastById);
-router.get("/UpdatePodcast", Podcast.updatePodcast);
+router.post("/UpdatePodcast", Podcast.updatePodcast);
 router.get("/DeletePodcast", Podcast.deletePodcast);
 
 // router.get("/SinglePodcast", Podcast.getSinglePodcast);
@@ -135,13 +174,6 @@ router.get("/Sort-Properties", AllFilter.SortProperties);
 // router.get("/Location-filter-property", AllFilter.filterByLocation);
 router.get("/Similar-property", AllFilter.filterByCommunity);
 router.get("/Property-location-suggestions", AllFilter.getAddressSuggestions);
-
-// Community Guideline Api's
-router.get("/GetCommunityGuides", CommunityGuides.GetAllCommunityGuides);
-router.get("/SingleCommunityGuide", CommunityGuides.getSingleCommunityGuide);
-router.get("/DeleteCommunityGuide", CommunityGuides.deleteCommunityGuide);
-router.post("/AddCommunityGuide", CommunityGuides.upload.single("image"), CommunityGuides.createCommunityGuide);
-router.post("/UpdateCommunityGuide", CommunityGuides.upload.single("image"), CommunityGuides.updateCommunityGuide);
 
 // AGENT API ENDPOINTS
 
@@ -167,6 +199,7 @@ router.get(
 );
 
 router.get('/Agent',AgentController.getAgentById);
+
 router.get(
   "/delete-agent",
   AgentController.deleteAgent

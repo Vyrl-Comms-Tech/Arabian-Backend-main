@@ -68,7 +68,7 @@ const getSingleProperty = async (req, res) => {
     } else {
       // OffPlan Property (default for all other types)
       property = await OffPlanProperty.findOne({ id: PropertyId });
-      console.log("Searching in OffPlan collection:", property);
+      // console.log("Searching in OffPlan collection:", property);
       
       if (property) {
         return res.status(200).json({

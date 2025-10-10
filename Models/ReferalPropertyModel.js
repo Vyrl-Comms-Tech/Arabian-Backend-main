@@ -60,16 +60,16 @@ const referralPropertySchema = new mongoose.Schema(
       relationship: {
         type: String,
         required: true,
-        enum: ["Friend", "Family Member", "Colleague", "Neighbor", "Other"],
+        // enum: ["Friend", "Family Member", "Colleague", "Neighbor", "Other"],
       },
       preferred_contact: {
         type: String,
-        enum: ["Email", "Phone", "WhatsApp"],
+        // enum: ["Email", "Phone", "WhatsApp"],
         default: "Phone",
       },
       best_time_contact: {
         type: String,
-        enum: ["Morning", "Afternoon", "Evening", "Anytime"],
+        // enum: ["Morning", "Afternoon", "Evening", "Anytime"],
         default: "Anytime",
       },
     },
@@ -78,7 +78,7 @@ const referralPropertySchema = new mongoose.Schema(
     query_details: {
       urgency_level: {
         type: String,
-        enum: ["Immediate", "Within 1 month", "Within 3 months", "No rush"],
+        // enum: ["Immediate", "Within 1 month", "Within 3 months", "No rush"],
         default: "No rush",
       },
       special_requirements: {

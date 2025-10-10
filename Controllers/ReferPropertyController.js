@@ -45,6 +45,8 @@ const ReferProperty = async (req, res) => {
       Urgency_Level,
       Special_Requirements
     } = req.body;
+    console.log("WORKING")
+    console.log(req.body);
 
     // Step 1: Validation
     const validationErrors = validateReferralData(req.body);

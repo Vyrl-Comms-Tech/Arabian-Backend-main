@@ -4,7 +4,7 @@ const getSingleProperty = async (req, res) => {
   try {
     // Get property ID and type from request parameters
     const PropertyId = req.query.id;
-    const PropertyType = req.query.type;
+    const PropertyType = req.query.type || req.query.listing_type;
     
     console.log("Property ID:", PropertyId);
     console.log("Property Type:", PropertyType);

@@ -1576,10 +1576,107 @@ const parseXmlFromUrl = async (req, res, next) => {
     };
 
     // SIMPLIFIED save function for single Property collection
+    // const saveOrUpdatePropertyToDb = async (propertyData) => {
+    //   try {
+    //     console.log(`Processing property ${propertyData.id}`);
+
+    //     // Validate and clean property data
+    //     const validationResult = validateAndCleanPropertyData(propertyData);
+    //     if (!validationResult.success) {
+    //       return {
+    //         success: false,
+    //         error: `Data validation failed: ${validationResult.error}`,
+    //         operationResults: {
+    //           mainOperation: 'failed',
+    //           agentOperation: 'failed',
+    //           errors: [validationResult.error]
+    //         }
+    //       };
+    //     }
+
+    //     propertyData = validationResult.data;
+
+    //     const listingType = propertyData._classification?.listingType || 'Sale';
+        
+    //     const operationResults = {
+    //       listingType: listingType,
+    //       isLive: listingType !== 'NonActive',
+    //       isOffPlan: listingType === 'OffPlan',
+    //       isCommercial: listingType === 'Commercial',
+    //       isNonActive: listingType === 'NonActive',
+    //       mainOperation: null,
+    //       agentOperation: null,
+    //       errors: []
+    //     };
+
+    //     try {
+    //       // Find existing property in the SINGLE Property collection
+    //       const existingProperty = await Property.findOne({ id: propertyData.id });
+          
+    //       if (existingProperty) {
+    //         // Update existing property
+    //         await Property.findOneAndUpdate(
+    //           { id: propertyData.id },
+    //           propertyData,
+    //           { new: true, upsert: false }
+    //         );
+    //         console.log(`✅ Updated existing property ${propertyData.id} in Property collection`);
+    //         operationResults.mainOperation = 'updated';
+    //       } else {
+    //         // Create new property
+    //         const newProperty = new Property(propertyData);
+    //         await newProperty.save();
+    //         console.log(`✅ Created new property ${propertyData.id} in Property collection`);
+    //         operationResults.mainOperation = 'created';
+    //       }
+
+    //       // Link property to agent ONLY if it's a Live property (not NonActive)
+    //       if (listingType !== 'Off Market'  && propertyData.listing_agent?.listing_agent_email) {
+    //         const agentResult = await linkPropertyToAgent(propertyData);
+    //         operationResults.agentOperation = agentResult.operation;
+    //         if (!agentResult.success) {
+    //           operationResults.errors.push(`Agent operation failed: ${agentResult.error || agentResult.reason}`);
+    //         } else {
+    //           console.log(`✅ Agent linking: ${agentResult.operation} for property ${propertyData.id}`);
+    //         }
+    //       } else {
+    //         operationResults.agentOperation = 'skipped_nonactive';
+    //         console.log(`⏭️ Skipped agent linking for non-active property ${propertyData.id}`);
+    //       }
+
+    //     } catch (error) {
+    //       console.error(`❌ Error processing property ${propertyData.id}:`, error);
+    //       operationResults.mainOperation = 'failed';
+    //       operationResults.errors.push(`Main operation failed: ${error.message}`);
+    //     }
+
+    //     const isSuccess = operationResults.mainOperation === 'created' || 
+    //                      operationResults.mainOperation === 'updated';
+
+    //     return {
+    //       success: isSuccess,
+    //       operationResults: operationResults,
+    //       error: isSuccess ? null : operationResults.errors.join('; ')
+    //     };
+
+    //   } catch (error) {
+    //     console.error(`❌ Error in saveOrUpdatePropertyToDb for property ${propertyData.id || "unknown"}:`, error);
+    //     return {
+    //       success: false,
+    //       error: error.message,
+    //       operationResults: {
+    //         mainOperation: 'failed',
+    //         agentOperation: 'failed',
+    //         errors: [error.message]
+    //       }
+    //     };
+    //   }
+    // };
+
     const saveOrUpdatePropertyToDb = async (propertyData) => {
       try {
         console.log(`Processing property ${propertyData.id}`);
-
+    
         // Validate and clean property data
         const validationResult = validateAndCleanPropertyData(propertyData);
         if (!validationResult.success) {
@@ -1593,14 +1690,19 @@ const parseXmlFromUrl = async (req, res, next) => {
             }
           };
         }
-
+    
         propertyData = validationResult.data;
-
+    
         const listingType = propertyData._classification?.listingType || 'Sale';
+        
+        // Get the actual property status from general_listing_information
+        const propertyStatus = propertyData.general_listing_information?.status;
+        const isLiveProperty = propertyStatus && propertyStatus.toLowerCase() === 'live';
         
         const operationResults = {
           listingType: listingType,
-          isLive: listingType !== 'NonActive',
+          propertyStatus: propertyStatus,
+          isLive: isLiveProperty,
           isOffPlan: listingType === 'OffPlan',
           isCommercial: listingType === 'Commercial',
           isNonActive: listingType === 'NonActive',
@@ -1608,7 +1710,7 @@ const parseXmlFromUrl = async (req, res, next) => {
           agentOperation: null,
           errors: []
         };
-
+    
         try {
           // Find existing property in the SINGLE Property collection
           const existingProperty = await Property.findOne({ id: propertyData.id });
@@ -1629,36 +1731,46 @@ const parseXmlFromUrl = async (req, res, next) => {
             console.log(`✅ Created new property ${propertyData.id} in Property collection`);
             operationResults.mainOperation = 'created';
           }
-
-          // Link property to agent ONLY if it's a Live property (not NonActive)
-          if (listingType !== 'NonActive' && propertyData.listing_agent?.listing_agent_email) {
+    
+          // CRITICAL CHANGE: Link property to agent ONLY if status is "Live" 
+          // (not just checking listingType !== 'NonActive')
+          if (isLiveProperty && propertyData.listing_agent?.listing_agent_email) {
+            console.log(`🔗 Attempting to link Live property ${propertyData.id} to agent...`);
             const agentResult = await linkPropertyToAgent(propertyData);
             operationResults.agentOperation = agentResult.operation;
+            
             if (!agentResult.success) {
               operationResults.errors.push(`Agent operation failed: ${agentResult.error || agentResult.reason}`);
+              console.log(`⚠️ Agent linking failed for property ${propertyData.id}: ${agentResult.reason}`);
             } else {
               console.log(`✅ Agent linking: ${agentResult.operation} for property ${propertyData.id}`);
             }
           } else {
-            operationResults.agentOperation = 'skipped_nonactive';
-            console.log(`⏭️ Skipped agent linking for non-active property ${propertyData.id}`);
+            // More specific logging for why agent linking was skipped
+            if (!isLiveProperty) {
+              operationResults.agentOperation = 'skipped_not_live';
+              console.log(`⏭️ Skipped agent linking for property ${propertyData.id} - Status: "${propertyStatus}" (not Live)`);
+            } else if (!propertyData.listing_agent?.listing_agent_email) {
+              operationResults.agentOperation = 'skipped_no_agent';
+              console.log(`⏭️ Skipped agent linking for property ${propertyData.id} - No agent email found`);
+            }
           }
-
+    
         } catch (error) {
           console.error(`❌ Error processing property ${propertyData.id}:`, error);
           operationResults.mainOperation = 'failed';
           operationResults.errors.push(`Main operation failed: ${error.message}`);
         }
-
+    
         const isSuccess = operationResults.mainOperation === 'created' || 
                          operationResults.mainOperation === 'updated';
-
+    
         return {
           success: isSuccess,
           operationResults: operationResults,
           error: isSuccess ? null : operationResults.errors.join('; ')
         };
-
+    
       } catch (error) {
         console.error(`❌ Error in saveOrUpdatePropertyToDb for property ${propertyData.id || "unknown"}:`, error);
         return {

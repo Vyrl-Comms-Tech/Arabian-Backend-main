@@ -1,15 +1,38 @@
 const Podcast = require("../Models/PodcastModel");
 
+// Helper function to get next order number
+const getNextOrderNumber = async () => {
+  const lastPodcast = await Podcast.findOne().sort({ orderNumber: -1 });
+  return lastPodcast ? lastPodcast.orderNumber + 1 : 1;
+};
+
 const createPodcast = async (req, res) => {
   try {
-    const { title, description, youtubeUrl, category, tags, orderNumber } =
-      req.body;
+    const { 
+      title, 
+      shortDescription, 
+      detailedDescription,
+      whatsInside,
+      coverPhoto,
+      youtubeUrl, 
+      category, 
+      tags, 
+      orderNumber 
+    } = req.body;
 
     // Validate required fields
-    if (!title || !description || !youtubeUrl) {
+    if (!title || !shortDescription || !detailedDescription || !youtubeUrl || !coverPhoto) {
       return res.status(400).json({
         success: false,
-        message: "Title, description, and YouTube URL are required",
+        message: "Title, short description, detailed description, cover photo, and YouTube URL are required",
+      });
+    }
+
+    // Validate whatsInside
+    if (!whatsInside || !Array.isArray(whatsInside) || whatsInside.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "At least one point for 'what's inside' is required",
       });
     }
 
@@ -32,7 +55,10 @@ const createPodcast = async (req, res) => {
 
     const podcastData = {
       title: title.trim(),
-      description: description.trim(),
+      shortDescription: shortDescription.trim(),
+      detailedDescription: detailedDescription.trim(),
+      whatsInside: whatsInside.map(point => point.trim()).filter(point => point.length > 0),
+      coverPhoto: coverPhoto.trim(),
       youtubeUrl: youtubeUrl.trim(),
       category: category?.trim() || "General",
       tags: tags || [],
@@ -80,13 +106,6 @@ const createPodcast = async (req, res) => {
 // Get All Podcasts
 const getAllPodcasts = async (req, res) => {
   try {
-    // console.log("Workking");
-
-    // const page = parseInt(req.query.page) || 1;
-    // const limit = parseInt(req.query.limit) || 10;
-    // const skip = (page - 1) * limit;
-
-    // // Build filter object
     const filter = {};
 
     // Filter by category if provided
@@ -98,7 +117,8 @@ const getAllPodcasts = async (req, res) => {
     if (req.query.search) {
       filter.$or = [
         { title: { $regex: req.query.search, $options: "i" } },
-        { description: { $regex: req.query.search, $options: "i" } },
+        { shortDescription: { $regex: req.query.search, $options: "i" } },
+        { detailedDescription: { $regex: req.query.search, $options: "i" } },
         { tags: { $in: [new RegExp(req.query.search, "i")] } },
       ];
     }
@@ -122,10 +142,8 @@ const getAllPodcasts = async (req, res) => {
     }
 
     const podcasts = await Podcast.find(filter)
-    //   .sort(sortOption)
-    //   .skip(skip)
-    //   .limit(limit)
-    //   .select("-__v");
+      .sort(sortOption)
+      .select("-__v");
 
     const total = await Podcast.countDocuments(filter);
 
@@ -133,15 +151,7 @@ const getAllPodcasts = async (req, res) => {
       success: true,
       message: "Podcasts retrieved successfully",
       data: podcasts,
-      // pagination: {
-      //   currentPage: page,
-      //   totalPages: Math.ceil(total / limit),
-      //   totalItems: total,
-      //   itemsPerPage: limit,
-      //   hasNextPage: page < Math.ceil(total / limit),
-      //   hasPrevPage: page > 1,
-      // },
-      
+      total: total,
     });
   } catch (error) {
     console.error("Error fetching podcasts:", error);
@@ -158,6 +168,8 @@ const getAllPodcasts = async (req, res) => {
 const getPodcastById = async (req, res) => {
   try {
     const podcastId = req.query.id;
+    console.log(podcastId);
+    
     if (!podcastId.match(/^[0-9a-fA-F]{24}$/)) {
       return res.status(400).json({
         success: false,
@@ -198,13 +210,23 @@ const getPodcastById = async (req, res) => {
   }
 };
 
-
 const updatePodcast = async (req, res) => {
   try {
-    const { title, description, youtubeUrl, category, tags, orderNumber } = req.body;
+    const { 
+      title, 
+      shortDescription, 
+      detailedDescription,
+      whatsInside,
+      coverPhoto,
+      youtubeUrl, 
+      category, 
+      tags, 
+      orderNumber 
+    } = req.body;
     
     const podcast = await Podcast.findById(req.query.id);
     console.log(podcast);
+    
     if (!podcast) {
       return res.status(404).json({
         success: false,
@@ -216,7 +238,7 @@ const updatePodcast = async (req, res) => {
     if (orderNumber && orderNumber !== podcast.orderNumber) {
       const existingPodcast = await Podcast.findOne({ 
         orderNumber: orderNumber,
-        _id: { $ne: req.query.id} 
+        _id: { $ne: req.query.id } 
       });
       if (existingPodcast) {
         return res.status(400).json({
@@ -229,7 +251,14 @@ const updatePodcast = async (req, res) => {
     // Update fields
     const updateData = {};
     if (title !== undefined) updateData.title = title.trim();
-    if (description !== undefined) updateData.description = description.trim();
+    if (shortDescription !== undefined) updateData.shortDescription = shortDescription.trim();
+    if (detailedDescription !== undefined) updateData.detailedDescription = detailedDescription.trim();
+    if (whatsInside !== undefined) {
+      updateData.whatsInside = whatsInside
+        .map(point => point.trim())
+        .filter(point => point.length > 0);
+    }
+    if (coverPhoto !== undefined) updateData.coverPhoto = coverPhoto.trim();
     if (youtubeUrl !== undefined) updateData.youtubeUrl = youtubeUrl.trim();
     if (category !== undefined) updateData.category = category.trim();
     if (tags !== undefined) updateData.tags = tags;
@@ -277,6 +306,7 @@ const updatePodcast = async (req, res) => {
     });
   }
 };
+
 const deletePodcast = async (req, res) => {
   try {
     const podcast = await Podcast.findById(req.query.id);
@@ -319,7 +349,6 @@ const deletePodcast = async (req, res) => {
     });
   }
 };
-
 
 module.exports = {
   createPodcast,
