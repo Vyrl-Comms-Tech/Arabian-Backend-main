@@ -153,8 +153,8 @@ const blogSchema = new Schema({
   // Agent Integration (keeping existing functionality)
   author: {
     agentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Agent',
+      type: String,
+      // ref: 'Agent',
       required: [true, 'Agent ID is required']
     },
     agentName: {
@@ -409,7 +409,7 @@ blogSchema.methods.updateSlug = async function(newTitle) {
 
 // Add this right before your module.exports line
 
-// Static method to parse text content to blog structure
+//
 blogSchema.statics.parseTextToBlogStructure = function(textContent) {
   const lines = textContent.split('\n').filter(line => line.trim());
   
@@ -417,6 +417,7 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
   let metaTitle = '';
   let metaDescription = '';
   let author = '';
+  let tags = []; // Added tags array
   const sections = [];
   let currentSection = null;
   let currentSubsection = null;
@@ -435,6 +436,19 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       continue;
     }
     
+    // NEW: Extract tags
+    if (line.startsWith('Tags:')) {
+      const tagsString = line.replace('Tags:', '').trim();
+      // Split by comma, trim each tag, filter empty, and convert to lowercase
+      tags = tagsString
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+        .map(tag => tag.toLowerCase());
+      console.log('Parsed tags:', tags);
+      continue;
+    }
+    
     if (line.startsWith('[Author:')) {
       author = line.replace('[Author:', '').replace(']', '').trim();
       continue;
@@ -443,6 +457,32 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
     // Extract main title (H1)
     if (line.includes('(H1)')) {
       title = line.replace('(H1)', '').trim();
+      continue;
+    }
+    
+    // Handle sections (H2)
+    if (line.includes('(H2)')) {
+      // Save current subsection if exists
+      if (currentSubsection && currentSection) {
+        currentSection.subsections.push(currentSubsection);
+        currentSubsection = null;
+      }
+      
+      // Save current section if exists
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+      
+      // Create new section
+      const heading = line.replace('(H2)', '').trim();
+      currentSection = {
+        id: `id_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'section',
+        heading: heading,
+        level: 2,
+        content: [],
+        subsections: []
+      };
       continue;
     }
     
@@ -561,7 +601,7 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       title: title || metaTitle,
       description: metaDescription,
       author: author,
-      tags: [],
+      tags: tags, // Now includes parsed tags
       category: '',
       slug: `${slug}-${Date.now()}`
     },
@@ -569,12 +609,12 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       title: title || metaTitle,
       sections: sections,
       wordCount: wordCount,
-      readingTime: Math.ceil(wordCount / 200) // Average reading speed
+      readingTime: Math.ceil(wordCount / 200)
     },
     seo: {
       metaTitle: metaTitle,
       metaDescription: metaDescription,
-      keywords: []
+      keywords: tags.slice(0, 5) // Use first 5 tags as keywords
     },
     status: 'draft'
   };

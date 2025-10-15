@@ -71,6 +71,8 @@ const newsSchema = new Schema({
   // Original ID from parser
   originalId: {
     type: String,
+    // unique: true,
+    // sparse: true
   },
   
   // Metadata
@@ -79,10 +81,12 @@ const newsSchema = new Schema({
       type: String,
       required: [true, 'News title is required'],
       trim: true,
+      // maxlength: [255, 'Title cannot exceed 255 characters']
     },
     description: {
       type: String,
       trim: true,
+      // maxlength: [500, 'Description cannot exceed 500 characters']
     },
     author: {
       type: String,
@@ -99,6 +103,7 @@ const newsSchema = new Schema({
     },
     slug: {
       type: String,
+      // unique: true,
       sparse: true, 
       lowercase: true,
       index: true
@@ -111,6 +116,7 @@ const newsSchema = new Schema({
       type: String,
       required: [true, 'Content title is required'],
       trim: true,
+      // maxlength: [255, 'Content title cannot exceed 255 characters']
     },
     sections: [sectionSchema],
     wordCount: {
@@ -130,10 +136,12 @@ const newsSchema = new Schema({
     metaTitle: {
       type: String,
       trim: true,
+      // maxlength: [60, 'Meta title should not exceed 60 characters for SEO']
     },
     metaDescription: {
       type: String,
       trim: true,
+      // maxlength: [160, 'Meta description should not exceed 160 characters for SEO']
     },
     keywords: [{
       type: String,
@@ -142,11 +150,11 @@ const newsSchema = new Schema({
     }]
   },
 
-  // Agent Integration
+  // Agent Integration (keeping existing functionality)
   author: {
     agentId: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: 'Agent',
+      type: String,
+      // ref: 'Agent',
       required: [true, 'Agent ID is required']
     },
     agentName: {
@@ -162,7 +170,7 @@ const newsSchema = new Schema({
     }
   },
 
-  // Image
+  // Image (keeping existing functionality)
   image: {
     filename: {
       type: String,
@@ -200,7 +208,7 @@ newsSchema.index({ 'author.agentId': 1 });
 newsSchema.index({ 'author.agentEmail': 1 });
 newsSchema.index({ createdAt: -1 });
 newsSchema.index({ isPublished: 1 });
-newsSchema.index({ 'metadata.slug': 1 }, { sparse: true });
+newsSchema.index({ 'metadata.slug': 1 }, { sparse: true }); // Make index sparse
 newsSchema.index({ status: 1 });
 newsSchema.index({ 'content.wordCount': 1 });
 newsSchema.index({ 'seo.keywords': 1 });
@@ -398,6 +406,9 @@ newsSchema.methods.updateSlug = async function(newTitle) {
   return this.save();
 };
 
+
+// Add this right before your module.exports line
+
 // Static method to parse text content to news structure
 newsSchema.statics.parseTextToNewsStructure = function(textContent) {
   const lines = textContent.split('\n').filter(line => line.trim());
@@ -406,6 +417,7 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
   let metaTitle = '';
   let metaDescription = '';
   let author = '';
+  let tags = []; // Added tags array
   const sections = [];
   let currentSection = null;
   let currentSubsection = null;
@@ -424,6 +436,19 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
       continue;
     }
     
+    // NEW: Extract tags
+    if (line.startsWith('Tags:')) {
+      const tagsString = line.replace('Tags:', '').trim();
+      // Split by comma, trim each tag, filter empty, and convert to lowercase
+      tags = tagsString
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0)
+        .map(tag => tag.toLowerCase());
+      console.log('Parsed tags:', tags);
+      continue;
+    }
+    
     if (line.startsWith('[Author:')) {
       author = line.replace('[Author:', '').replace(']', '').trim();
       continue;
@@ -435,17 +460,46 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
       continue;
     }
     
-    // Handle sections (H3)
-    if (line.includes('(H3)')) {
+    // Handle sections (H2)
+    if (line.includes('(H2)')) {
+      // Save current subsection if exists
       if (currentSubsection && currentSection) {
         currentSection.subsections.push(currentSubsection);
         currentSubsection = null;
       }
       
+      // Save current section if exists
       if (currentSection) {
         sections.push(currentSection);
       }
       
+      // Create new section
+      const heading = line.replace('(H2)', '').trim();
+      currentSection = {
+        id: `id_${Math.random().toString(36).substr(2, 9)}`,
+        type: 'section',
+        heading: heading,
+        level: 2,
+        content: [],
+        subsections: []
+      };
+      continue;
+    }
+    
+    // Handle sections (H3)
+    if (line.includes('(H3)')) {
+      // Save current subsection if exists
+      if (currentSubsection && currentSection) {
+        currentSection.subsections.push(currentSubsection);
+        currentSubsection = null;
+      }
+      
+      // Save current section if exists
+      if (currentSection) {
+        sections.push(currentSection);
+      }
+      
+      // Create new section
       const heading = line.replace('(H3)', '').trim();
       currentSection = {
         id: `id_${Math.random().toString(36).substr(2, 9)}`,
@@ -496,7 +550,7 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
       continue;
     }
     
-    // Handle regular content lines
+    // Handle regular content lines (treat as paragraphs)
     if (line && !line.includes('(') && currentSection) {
       const contentItem = {
         type: 'paragraph',
@@ -547,7 +601,7 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
       title: title || metaTitle,
       description: metaDescription,
       author: author,
-      tags: [],
+      tags: tags, // Now includes parsed tags
       category: '',
       slug: `${slug}-${Date.now()}`
     },
@@ -560,7 +614,7 @@ newsSchema.statics.parseTextToNewsStructure = function(textContent) {
     seo: {
       metaTitle: metaTitle,
       metaDescription: metaDescription,
-      keywords: []
+      keywords: tags.slice(0, 5) // Use first 5 tags as keywords
     },
     status: 'draft'
   };

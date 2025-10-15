@@ -121,8 +121,10 @@ router.get("/Delete-Refer-Lead", ReferProperties.deleteQuery);
 router.get("/GetBlogs", Blogs.GetAllBlogs);
 router.get("/SingleBlog", Blogs.getSingleBlog);
 router.get("/DeleteBlog", Blogs.deleteBlog);
-router.post("/Addblog", Blogs.upload.single("image"), Blogs.createBlog); // Use Blogs.upload
-router.post("/UpdateBlog", Blogs.upload.single("image"), Blogs.updateBlog); // Use Blogs.upload
+router.get("/GetBlogByTag", Blogs.getBlogsByTags);
+router.post("/Addblog", Blogs.upload.single("image"), Blogs.createBlog); 
+
+router.put('/UpdateBlog', upload.single('image'), Blogs.updateBlog);
 
 
 // Community Guideline 

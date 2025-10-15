@@ -3,45 +3,44 @@ const Agent = require("../Models/AgentModel"); // Add Agent model
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs").promises;
-const fsSync = require("fs"); 
+const fsSync = require("fs");
 // const { validationResult } = require('express-validator');
-
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     // Use absolute path
     const blogsDir = path.join(__dirname, "..", "uploads", "Blogs");
-    
+
     console.log("=== MULTER DESTINATION DEBUG ===");
     console.log("__dirname:", __dirname);
     console.log("Calculated blogsDir:", blogsDir);
     console.log("Directory exists:", fsSync.existsSync(blogsDir));
-    
+
     // Ensure directory exists using sync methods (required for multer)
     if (!fsSync.existsSync(blogsDir)) {
       fsSync.mkdirSync(blogsDir, { recursive: true });
       console.log("Created directory:", blogsDir);
     }
-    
+
     cb(null, blogsDir);
   },
   filename: (req, file, cb) => {
     const unique = Date.now() + "-" + Math.round(Math.random() * 1e9);
     const filename = unique + "-" + file.originalname;
-    
+
     console.log("=== MULTER FILENAME DEBUG ===");
     console.log("Generated filename:", filename);
     console.log("Original name:", file.originalname);
-    
+
     cb(null, filename);
-  }
+  },
 });
 
 const fileFilter = (req, file, cb) => {
   console.log("=== FILE FILTER DEBUG ===");
   console.log("File mimetype:", file.mimetype);
   console.log("File originalname:", file.originalname);
-  
+
   if (file.mimetype.startsWith("image/")) {
     console.log("File accepted");
     cb(null, true);
@@ -57,12 +56,13 @@ const upload = multer({
   limits: { fileSize: 2 * 1024 * 1024 }, // 2MB limit
 });
 
+
 const createBlog = async (req, res) => {
   try {
     console.log("=== BLOG CREATION START ===");
     console.log("Request body keys:", Object.keys(req.body));
-    console.log("Request file:", req.file ? 'Present' : 'Not present');
-    
+    console.log("Request file:", req.file ? "Present" : "Not present");
+
     if (req.file) {
       console.log("=== FILE UPLOAD DEBUG ===");
       console.log("File details:", {
@@ -71,9 +71,9 @@ const createBlog = async (req, res) => {
         mimetype: req.file.mimetype,
         size: req.file.size,
         destination: req.file.destination,
-        path: req.file.path
+        path: req.file.path,
       });
-      
+
       // Verify file actually exists at the path
       const fileExists = fsSync.existsSync(req.file.path);
       console.log("File exists at path:", fileExists);
@@ -82,9 +82,13 @@ const createBlog = async (req, res) => {
 
     // Extract and validate basic fields
     const { parsedData, agentId } = req.body;
-    
+    console.log(agentId, "Agent ID");
+
     console.log("Raw parsedData type:", typeof parsedData);
-    console.log("Raw parsedData:", parsedData ? parsedData.substring(0, 100) + '...' : 'null/undefined');
+    console.log(
+      "Raw parsedData:",
+      parsedData ? parsedData.substring(0, 100) + "..." : "null/undefined"
+    );
     console.log("AgentId:", agentId);
 
     // Validate required fields
@@ -92,7 +96,7 @@ const createBlog = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "parsedData is required",
-        received: { parsedData, agentId }
+        received: { parsedData, agentId },
       });
     }
 
@@ -100,7 +104,7 @@ const createBlog = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: "agentId is required",
-        received: { parsedData: "present", agentId }
+        received: { parsedData: "present", agentId },
       });
     }
 
@@ -109,7 +113,7 @@ const createBlog = async (req, res) => {
     try {
       if (typeof parsedData === "string") {
         console.log("Parsing string data...");
-        
+
         if (parsedData.trim().startsWith("{")) {
           console.log("Detected JSON format");
           blogData = JSON.parse(parsedData);
@@ -130,7 +134,7 @@ const createBlog = async (req, res) => {
         message: "Failed to parse blog data",
         error: parseError.message,
         receivedType: typeof parsedData,
-        receivedData: parsedData ? parsedData.substring(0, 200) : 'null'
+        receivedData: parsedData ? parsedData.substring(0, 200) : "null",
       });
     }
 
@@ -142,11 +146,11 @@ const createBlog = async (req, res) => {
     console.log("=== END PARSED DATA ===");
 
     // Validate parsed blog data structure
-    if (!blogData || typeof blogData !== 'object') {
+    if (!blogData || typeof blogData !== "object") {
       return res.status(400).json({
         success: false,
         message: "Parsed data must be an object",
-        received: blogData
+        received: blogData,
       });
     }
 
@@ -157,25 +161,30 @@ const createBlog = async (req, res) => {
         received: {
           hasContent: !!blogData.content,
           contentTitle: blogData.content?.title,
-          blogDataKeys: Object.keys(blogData)
-        }
+          blogDataKeys: Object.keys(blogData),
+        },
       });
     }
 
-    if (!blogData.content.sections || !Array.isArray(blogData.content.sections)) {
+    if (
+      !blogData.content.sections ||
+      !Array.isArray(blogData.content.sections)
+    ) {
       return res.status(400).json({
         success: false,
         message: "Blog content sections are required and must be an array",
         received: {
           hasSections: !!blogData.content.sections,
           sectionsType: typeof blogData.content.sections,
-          sectionsLength: Array.isArray(blogData.content.sections) ? blogData.content.sections.length : 'not array'
-        }
+          sectionsLength: Array.isArray(blogData.content.sections)
+            ? blogData.content.sections.length
+            : "not array",
+        },
       });
     }
 
-    // Find the agent
-    console.log("Finding agent with ID:", agentId);
+    // Find the agent using the custom agentId
+    console.log("Finding agent with custom agentId:", agentId);
     const agent = await Agent.findOne({ agentId: agentId });
 
     if (!agent) {
@@ -203,6 +212,8 @@ const createBlog = async (req, res) => {
     }
 
     console.log("Agent found:", agent.agentName);
+    console.log("Agent custom ID:", agent.agentId);
+    console.log("Agent MongoDB _id:", agent._id);
 
     // Handle image upload
     let imageData = null;
@@ -226,12 +237,15 @@ const createBlog = async (req, res) => {
       };
     }
 
-    // Create the blog document
+    // Create the blog document - STORE CUSTOM agentId instead of MongoDB _id
     const newBlog = new Blog({
-      originalId: blogData.id || `blog_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      originalId:
+        blogData.id ||
+        `blog_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       metadata: {
         title: blogData.metadata?.title || blogData.content?.title,
-        description: blogData.metadata?.description || blogData.seo?.metaDescription || "",
+        description:
+          blogData.metadata?.description || blogData.seo?.metaDescription || "",
         author: blogData.metadata?.author || agent.agentName,
         tags: blogData.metadata?.tags || [],
         category: blogData.metadata?.category || "",
@@ -249,7 +263,7 @@ const createBlog = async (req, res) => {
         keywords: blogData.seo?.keywords || [],
       },
       author: {
-        agentId: agent._id,
+        agentId: agent.agentId, // Store custom agentId (e.g., "AGENT_12345")
         agentName: agent.agentName,
         agentEmail: agent.email,
       },
@@ -262,6 +276,7 @@ const createBlog = async (req, res) => {
     console.log("Saving blog to database...");
     const savedBlog = await newBlog.save();
     console.log("Blog saved with ID:", savedBlog._id);
+    console.log("Blog author.agentId:", savedBlog.author.agentId);
 
     // Add blog to agent's blogs array
     try {
@@ -278,13 +293,16 @@ const createBlog = async (req, res) => {
 
       if (typeof agent.addOrUpdateBlog === "function") {
         agent.addOrUpdateBlog(blogForAgent);
-        await agent.save();
+        await agent.save({ validateBeforeSave: false });
         console.log("Blog added to agent successfully");
       } else {
         console.log("Warning: addOrUpdateBlog method not available on agent");
       }
     } catch (agentUpdateError) {
-      console.log("Warning: Could not update agent's blog array:", agentUpdateError.message);
+      console.log(
+        "Warning: Could not update agent's blog array:",
+        agentUpdateError.message
+      );
     }
 
     console.log("=== BLOG CREATION SUCCESS ===");
@@ -302,7 +320,6 @@ const createBlog = async (req, res) => {
         },
       },
     });
-
   } catch (error) {
     console.error("=== BLOG CREATION ERROR ===");
     console.error("Error message:", error.message);
@@ -322,11 +339,361 @@ const createBlog = async (req, res) => {
       success: false,
       message: "Failed to create blog from parsed content",
       error: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
 
+const updateBlog = async (req, res) => {
+  try {
+    console.log("=== BLOG UPDATE START ===");
+    console.log("Request body keys:", Object.keys(req.body));
+    console.log("Request file:", req.file ? "Present" : "Not present");
+
+    if (req.file) {
+      console.log("=== FILE UPLOAD DEBUG ===");
+      console.log("File details:", {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        destination: req.file.destination,
+        path: req.file.path,
+      });
+    }
+
+    const { blogId, parsedData, agentId } = req.body;
+
+    console.log("BlogId:", blogId);
+    console.log("New AgentId:", agentId);
+    console.log("Raw parsedData type:", typeof parsedData);
+
+    // Validate required fields
+    if (!blogId) {
+      return res.status(400).json({
+        success: false,
+        message: "blogId is required",
+      });
+    }
+
+    // Find the blog to update
+    const blog = await Blog.findById(blogId);
+    if (!blog) {
+      return res.status(404).json({
+        success: false,
+        message: "Blog not found",
+        blogId: blogId,
+      });
+    }
+
+    console.log("Blog found:", blog.content?.title || blog.metadata?.title);
+    console.log("Current blog author agentId:", blog.author.agentId);
+
+    // Store old agent info for later cleanup
+    const oldAgentId = blog.author.agentId;
+    let agentChanged = false;
+
+    // Handle agent change if new agentId is provided
+    if (agentId && agentId !== oldAgentId) {
+      console.log("=== AGENT CHANGE DETECTED ===");
+      console.log("Old Agent ID:", oldAgentId);
+      console.log("New Agent ID:", agentId);
+
+      // Find the new agent using custom agentId
+      const newAgent = await Agent.findOne({ agentId: agentId });
+
+      if (!newAgent) {
+        return res.status(404).json({
+          success: false,
+          message: "New agent not found",
+          requestedAgentId: agentId,
+        });
+      }
+
+      if (!newAgent.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: "New agent is not active",
+          agentId: agentId,
+        });
+      }
+
+      console.log("New agent found:", newAgent.agentName);
+
+      // Update blog's author info with new agent
+      blog.author.agentId = newAgent.agentId;
+      blog.author.agentName = newAgent.agentName;
+      blog.author.agentEmail = newAgent.email;
+
+      agentChanged = true;
+    }
+
+    // Parse and update blog data if provided
+    if (parsedData) {
+      let updateData;
+
+      try {
+        if (typeof parsedData === "string") {
+          console.log("Parsing string data...");
+
+          if (parsedData.trim().startsWith("{")) {
+            console.log("Detected JSON format");
+            updateData = JSON.parse(parsedData);
+          } else {
+            console.log("Detected plain text format, using text parser");
+            updateData = Blog.parseTextToBlogStructure(parsedData);
+          }
+        } else if (typeof parsedData === "object" && parsedData !== null) {
+          console.log("Data already parsed as object");
+          updateData = parsedData;
+        } else {
+          throw new Error(`Invalid parsedData type: ${typeof parsedData}`);
+        }
+      } catch (parseError) {
+        console.error("Parse error:", parseError.message);
+        return res.status(400).json({
+          success: false,
+          message: "Failed to parse blog data",
+          error: parseError.message,
+          receivedType: typeof parsedData,
+        });
+      }
+
+      console.log("=== PARSED UPDATE DATA ===");
+      console.log("Update data keys:", Object.keys(updateData || {}));
+      console.log("Content title:", updateData?.content?.title);
+      console.log("Sections count:", updateData?.content?.sections?.length);
+      console.log("=== END PARSED DATA ===");
+
+      // Update metadata fields if provided
+      if (updateData.metadata) {
+        if (updateData.metadata.title) {
+          blog.metadata.title = updateData.metadata.title;
+        }
+        if (updateData.metadata.description !== undefined) {
+          blog.metadata.description = updateData.metadata.description;
+        }
+        if (updateData.metadata.author) {
+          blog.metadata.author = updateData.metadata.author;
+        }
+        if (updateData.metadata.tags) {
+          blog.metadata.tags = Array.isArray(updateData.metadata.tags)
+            ? updateData.metadata.tags
+            : [];
+        }
+        if (updateData.metadata.category !== undefined) {
+          blog.metadata.category = updateData.metadata.category;
+        }
+        if (updateData.metadata.slug !== undefined) {
+          blog.metadata.slug = updateData.metadata.slug;
+        }
+      }
+
+      // Update content fields if provided
+      if (updateData.content) {
+        if (updateData.content.title) {
+          blog.content.title = updateData.content.title;
+        }
+        if (
+          updateData.content.sections &&
+          Array.isArray(updateData.content.sections)
+        ) {
+          blog.content.sections = updateData.content.sections;
+        }
+        if (updateData.content.wordCount !== undefined) {
+          blog.content.wordCount = updateData.content.wordCount;
+        }
+        if (updateData.content.readingTime !== undefined) {
+          blog.content.readingTime = updateData.content.readingTime;
+        }
+      }
+
+      // Update SEO fields if provided
+      if (updateData.seo) {
+        if (updateData.seo.metaTitle !== undefined) {
+          blog.seo.metaTitle = updateData.seo.metaTitle;
+        }
+        if (updateData.seo.metaDescription !== undefined) {
+          blog.seo.metaDescription = updateData.seo.metaDescription;
+        }
+        if (updateData.seo.keywords) {
+          blog.seo.keywords = Array.isArray(updateData.seo.keywords)
+            ? updateData.seo.keywords
+            : [];
+        }
+      }
+
+      // Update status if provided
+      if (updateData.status) {
+        blog.status = updateData.status;
+
+        // Handle publish/unpublish based on status
+        if (updateData.status === "published" && !blog.isPublished) {
+          blog.isPublished = true;
+          blog.publishedAt = new Date();
+        } else if (updateData.status === "draft" && blog.isPublished) {
+          blog.isPublished = false;
+          blog.publishedAt = null;
+        }
+      }
+    }
+
+    // Handle image update
+    if (req.file) {
+      console.log("Updating blog image...");
+
+      // Delete old image if it exists and isn't placeholder
+      if (
+        blog.image &&
+        blog.image.path &&
+        blog.image.filename !== "placeholder.jpg"
+      ) {
+        const oldImagePath = blog.image.path;
+        try {
+          await fs.unlink(oldImagePath);
+          console.log("Deleted old image:", oldImagePath);
+        } catch (err) {
+          console.log("Could not delete old image:", err.message);
+        }
+      }
+
+      // Update with new image
+      blog.image = {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+      };
+      console.log("Image updated:", req.file.filename);
+    }
+
+    // Save the updated blog
+    console.log("Saving updated blog...");
+    await blog.save();
+    console.log("Blog saved successfully");
+
+    // Prepare blog data for agent array
+    const blogForAgent = {
+      blogId: blog._id,
+      title: blog.content?.title || blog.metadata?.title || "Untitled",
+      slug: blog.metadata?.slug || "",
+      image: {
+        filename: blog.image?.filename || "placeholder.jpg",
+        originalName: blog.image?.originalName || "placeholder.jpg",
+        mimetype: blog.image?.mimetype || "image/jpeg",
+        size: blog.image?.size || 0,
+        path: blog.image?.path || "uploads/Blogs/placeholder.jpg",
+      },
+      isPublished: blog.isPublished || false,
+      publishedAt: blog.publishedAt || null,
+      createdAt: blog.createdAt,
+      updatedAt: blog.updatedAt,
+    };
+
+    // Handle agent reassignment
+    if (agentChanged) {
+      console.log("=== HANDLING AGENT REASSIGNMENT ===");
+
+      // Remove blog from old agent
+      try {
+        const oldAgent = await Agent.findOne({ agentId: oldAgentId });
+        if (oldAgent) {
+          // Remove blog from old agent's blogs array
+          oldAgent.blogs = oldAgent.blogs.filter(
+            (b) => b.blogId.toString() !== blog._id.toString()
+          );
+          await oldAgent.save({ validateBeforeSave: false });
+          console.log("Removed blog from old agent:", oldAgent.agentName);
+        }
+      } catch (oldAgentError) {
+        console.log(
+          "Warning: Could not remove blog from old agent:",
+          oldAgentError.message
+        );
+      }
+
+      // Add blog to new agent
+      try {
+        const newAgent = await Agent.findOne({ agentId: blog.author.agentId });
+        if (newAgent && typeof newAgent.addOrUpdateBlog === "function") {
+          newAgent.addOrUpdateBlog(blogForAgent);
+          await newAgent.save({ validateBeforeSave: false });
+          console.log("Added blog to new agent:", newAgent.agentName);
+        }
+      } catch (newAgentError) {
+        console.log(
+          "Warning: Could not add blog to new agent:",
+          newAgentError.message
+        );
+      }
+    } else {
+      // No agent change, just update blog entry in current agent
+      try {
+        const currentAgent = await Agent.findOne({ agentId: blog.author.agentId });
+        if (currentAgent && typeof currentAgent.addOrUpdateBlog === "function") {
+          currentAgent.addOrUpdateBlog(blogForAgent);
+          await currentAgent.save({ validateBeforeSave: false });
+          console.log("Updated blog entry in current agent:", currentAgent.agentName);
+        }
+      } catch (agentError) {
+        console.log(
+          "Warning: Could not update agent's blog entry:",
+          agentError.message
+        );
+      }
+    }
+
+    console.log("=== BLOG UPDATE SUCCESS ===");
+
+    res.status(200).json({
+      success: true,
+      message: agentChanged 
+        ? "Blog updated and reassigned to new agent successfully" 
+        : "Blog updated successfully",
+      data: {
+        blog: blog,
+        stats: blog.getContentStats ? blog.getContentStats() : undefined,
+        linkedAgent: {
+          agentId: blog.author.agentId,
+          agentName: blog.author.agentName,
+          email: blog.author.agentEmail,
+        },
+        agentChanged: agentChanged,
+      },
+    });
+  } catch (error) {
+    console.error("=== BLOG UPDATE ERROR ===");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+
+    // Log request details for debugging
+    console.error("Request body keys:", Object.keys(req.body));
+    console.error("BlogId:", req.body.blogId);
+    console.error("AgentId:", req.body.agentId);
+    console.error("Has parsedData:", !!req.body.parsedData);
+    console.error("Has file:", !!req.file);
+
+    // Delete uploaded file if blog update fails
+    if (req.file) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log("Cleaned up uploaded file");
+      } catch (unlinkError) {
+        console.log("Could not delete uploaded file:", unlinkError.message);
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update blog",
+      error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+};
 
 const GetAllBlogs = async (req, res) => {
   try {
@@ -396,232 +763,77 @@ const getSingleBlog = async (req, res) => {
 };
 
 
-
-const updateBlog = async (req, res) => {
+const getBlogsByTags = async (req, res) => {
   try {
-    console.log("=== UPDATE BLOG DEBUG ===");
-    console.log("req.body:", req.body);
-    console.log("req.file:", req.file);
-    console.log("========================");
+    const { tags, limit = 6, excludeId } = req.query;
 
-    if (!req.body) {
+    if (!tags) {
       return res.status(400).json({
         success: false,
-        message: "Request body is undefined - multer middleware not working",
+        message: "Tags are required. Pass tags as comma-separated values.",
+        example: "/api/blogs/by-tags?tags=dubai,uae,property&limit=6"
       });
     }
 
-    const {
-      blogId,
-      title,
-      heading,
-      desc1,
-      desc2,
-      desc3,
-      agentId,
-      tags,
-      isPublished,
-    } = req.body;
+    // Convert comma-separated tags to array and normalize
+    const tagsArray = tags
+      .split(',')
+      .map(tag => tag.trim().toLowerCase())
+      .filter(tag => tag.length > 0);
 
-    console.log("Extracted data:", {
-      blogId,
-      title,
-      heading,
-      desc1,
-      desc2,
-      desc3,
-      agentId,
-      tags,
-      isPublished,
+
+    // Build query to find blogs with any of these tags
+    const query = {
+      'metadata.tags': { $in: tagsArray },
+      // isPublished: true // Only show published blogs
+    };
+
+    // Exclude the current blog if excludeId is provided
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    // Find blogs and sort by most matching tags
+    const blogs = await Blog.find(query)
+      .populate('author.agentId', 'agentName email imageUrl designation')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    // Calculate match score for each blog (how many tags match)
+    const blogsWithScore = blogs.map(blog => {
+      const matchingTags = blog.metadata.tags.filter(tag => 
+        tagsArray.includes(tag.toLowerCase())
+      );
+      return {
+        ...blog.toObject(),
+        matchScore: matchingTags.length,
+        matchingTags: matchingTags
+      };
     });
 
-    if (!blogId) {
-      return res.status(400).json({
-        success: false,
-        message: "Blog ID is required",
-      });
-    }
+    // Sort by match score (most matching tags first)
+    blogsWithScore.sort((a, b) => b.matchScore - a.matchScore);
 
-    // Find the blog to update
-    const blog = await Blog.findById(blogId);
-    if (!blog) {
-      return res.status(404).json({
-        success: false,
-        message: "Blog not found",
-      });
-    }
-
-    let oldAgent = null;
-    let newAgent = null;
-
-    // Handle agent change
-    if (agentId && agentId !== blog.author.agentId.toString()) {
-      // Find new agent
-      newAgent = await Agent.findById(agentId);
-      if (!newAgent) {
-        return res.status(404).json({
-          success: false,
-          message: "New agent not found",
-          agentId: agentId,
-        });
-      }
-
-      if (!newAgent.isActive) {
-        return res.status(400).json({
-          success: false,
-          message: "New agent is not active",
-          agentId: agentId,
-        });
-      }
-
-      // Find old agent to remove blog
-      oldAgent = await Agent.findById(blog.author.agentId);
-    }
-
-    // Update blog fields
-    if (title !== undefined && title.trim()) {
-      blog.title = title.trim();
-    }
-
-    if (heading !== undefined && heading.trim()) {
-      blog.heading = heading.trim();
-    }
-
-    if (desc1 !== undefined && desc1.trim()) {
-      if (desc1.trim().length < 10) {
-        return res.status(400).json({
-          success: false,
-          message: "First description must be at least 10 characters",
-        });
-      }
-      blog.desc1 = desc1.trim();
-    }
-
-    if (desc2 !== undefined) {
-      blog.desc2 = desc2 && desc2.trim() ? desc2.trim() : null;
-    }
-
-    if (desc3 !== undefined) {
-      blog.desc3 = desc3 && desc3.trim() ? desc3.trim() : null;
-    }
-
-    // Update agent if changed
-    if (newAgent) {
-      blog.author = {
-        agentId: newAgent._id,
-        agentName: newAgent.agentName,
-        agentEmail: newAgent.email,
-      };
-    }
-
-    // Handle publish/unpublish
-    if (isPublished !== undefined) {
-      const publishStatus = isPublished === "true" || isPublished === true;
-      if (publishStatus && !blog.isPublished) {
-        // Publishing the blog
-        blog.publish();
-      } else if (!publishStatus && blog.isPublished) {
-        // Unpublishing the blog
-        blog.unpublish();
-      }
-    }
-
-    // Handle tags update
-    if (tags !== undefined) {
-      if (Array.isArray(tags)) {
-        blog.tags = tags
-          .map((tag) => tag.trim().toLowerCase())
-          .filter((tag) => tag.length > 0);
-      } else if (typeof tags === "string") {
-        blog.tags = tags
-          .split(",")
-          .map((tag) => tag.trim().toLowerCase())
-          .filter((tag) => tag.length > 0);
-      } else {
-        blog.tags = [];
-      }
-    }
-
-    // Handle image update
-    if (req.file) {
-      // Delete old image
-      if (blog.image && blog.image.path) {
-        await fs.unlink(blog.image.path).catch((err) => {
-          console.log("Could not delete old image:", err.message);
-        });
-      }
-
-      // Update with new image
-      blog.image = {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path,
-      };
-    }
-
-    // Save the updated blog
-    await blog.save();
-
-    // Handle agent changes
-    if (oldAgent && newAgent) {
-      // Remove blog from old agent
-      oldAgent.removeBlog(blog._id);
-      await oldAgent.save();
-
-      // Add blog to new agent
-      const blogForAgent = {
-        blogId: blog._id,
-        title: blog.title,
-        slug: blog.slug,
-        isPublished: blog.isPublished,
-        publishedAt: blog.publishedAt,
-      };
-      newAgent.addOrUpdateBlog(blogForAgent);
-      await newAgent.save();
-
-      console.log(
-        `✅ Blog transferred from ${oldAgent.agentName} to ${newAgent.agentName}`
-      );
-    } else if (!newAgent) {
-      // Update existing agent's blog entry
-      const currentAgent = await Agent.findById(blog.author.agentId);
-      if (currentAgent) {
-        const blogForAgent = {
-          blogId: blog._id,
-          title: blog.title,
-          slug: blog.slug,
-          isPublished: blog.isPublished,
-          publishedAt: blog.publishedAt,
-        };
-        currentAgent.addOrUpdateBlog(blogForAgent);
-        await currentAgent.save();
-      }
-    }
+    console.log(`Found ${blogsWithScore.length} blogs with matching tags`);
 
     res.status(200).json({
       success: true,
-      message: "Blog updated successfully",
-      data: blog,
+      message: "Blogs with matching tags fetched successfully",
+      count: blogsWithScore.length,
+      searchedTags: tagsArray,
+      data: blogsWithScore
     });
+
   } catch (error) {
-    console.error("Error updating blog:", error.message);
-
-    // Delete uploaded file if blog update fails
-    if (req.file) {
-      await fs.unlink(req.file.path).catch(() => {});
-    }
-
+    console.error("Error fetching blogs by tags:", error.message);
     res.status(500).json({
       success: false,
-      message: "Failed to update blog",
-      error: error.message,
+      message: "Failed to fetch blogs by tags",
+      error: error.message
     });
   }
 };
 
-// ——— UPDATED: Delete blog with agent unlinking ———
 const deleteBlog = async (req, res) => {
   try {
     const blogId = req.query.id || req.body.id;
@@ -810,6 +1022,7 @@ const toggleBlogPublishStatus = async (req, res) => {
 module.exports = {
   GetAllBlogs,
   getSingleBlog,
+  getBlogsByTags,
   createBlog,
   updateBlog,
   deleteBlog,

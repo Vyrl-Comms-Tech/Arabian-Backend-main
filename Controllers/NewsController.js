@@ -9,7 +9,7 @@ const storage = multer.diskStorage({
   destination: (req, file, cb) => {
     const newsDir = path.join(__dirname, "..", "uploads", "News");
     
-    // console.log("=== MULTER DESTINATION DEBUG ===");
+    console.log("=== MULTER DESTINATION DEBUG ===");
     console.log("__dirname:", __dirname);
     console.log("Calculated newsDir:", newsDir);
     console.log("Directory exists:", fsSync.existsSync(newsDir));
@@ -76,6 +76,7 @@ const createNews = async (req, res) => {
     }
 
     const { parsedData, agentId } = req.body;
+    console.log(agentId, "Agent ID");
     
     console.log("Raw parsedData type:", typeof parsedData);
     console.log("Raw parsedData:", parsedData ? parsedData.substring(0, 100) + '...' : 'null/undefined');
@@ -166,7 +167,8 @@ const createNews = async (req, res) => {
       });
     }
 
-    console.log("Finding agent with ID:", agentId);
+    // Find the agent using the custom agentId
+    console.log("Finding agent with custom agentId:", agentId);
     const agent = await Agent.findOne({ agentId: agentId });
 
     if (!agent) {
@@ -194,6 +196,8 @@ const createNews = async (req, res) => {
     }
 
     console.log("Agent found:", agent.agentName);
+    console.log("Agent custom ID:", agent.agentId);
+    console.log("Agent MongoDB _id:", agent._id);
 
     // Handle image upload
     let imageData = null;
@@ -217,7 +221,7 @@ const createNews = async (req, res) => {
       };
     }
 
-    // Create the news document
+    // Create the news document - STORE CUSTOM agentId instead of MongoDB _id
     const newNews = new News({
       originalId: newsData.id || `news_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       metadata: {
@@ -240,7 +244,7 @@ const createNews = async (req, res) => {
         keywords: newsData.seo?.keywords || [],
       },
       author: {
-        agentId: agent._id,
+        agentId: agent.agentId, // Store custom agentId (e.g., "AGENT_12345")
         agentName: agent.agentName,
         agentEmail: agent.email,
       },
@@ -252,6 +256,34 @@ const createNews = async (req, res) => {
     console.log("Saving news to database...");
     const savedNews = await newNews.save();
     console.log("News saved with ID:", savedNews._id);
+    console.log("News author.agentId:", savedNews.author.agentId);
+
+    // Add news to agent's news array (if such method exists)
+    try {
+      const newsForAgent = {
+        newsId: savedNews._id,
+        title: savedNews.content.title,
+        slug: savedNews.metadata.slug,
+        image: savedNews.image,
+        isPublished: savedNews.isPublished,
+        publishedAt: savedNews.publishedAt,
+        createdAt: savedNews.createdAt,
+        updatedAt: savedNews.updatedAt,
+      };
+
+      if (typeof agent.addOrUpdateNews === "function") {
+        agent.addOrUpdateNews(newsForAgent);
+        await agent.save({ validateBeforeSave: false });
+        console.log("News added to agent successfully");
+      } else {
+        console.log("Warning: addOrUpdateNews method not available on agent");
+      }
+    } catch (agentUpdateError) {
+      console.log(
+        "Warning: Could not update agent's news array:",
+        agentUpdateError.message
+      );
+    }
 
     console.log("=== NEWS CREATION SUCCESS ===");
 
@@ -288,6 +320,357 @@ const createNews = async (req, res) => {
       message: "Failed to create news from parsed content",
       error: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+    });
+  }
+};
+
+const updateNews = async (req, res) => {
+  try {
+    console.log("=== NEWS UPDATE START ===");
+    console.log("Request body keys:", Object.keys(req.body));
+    console.log("Request file:", req.file ? "Present" : "Not present");
+
+    if (req.file) {
+      console.log("=== FILE UPLOAD DEBUG ===");
+      console.log("File details:", {
+        filename: req.file.filename,
+        originalname: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        destination: req.file.destination,
+        path: req.file.path,
+      });
+    }
+
+    const { newsId, parsedData, agentId } = req.body;
+
+    console.log("NewsId:", newsId);
+    console.log("New AgentId:", agentId);
+    console.log("Raw parsedData type:", typeof parsedData);
+
+    // Validate required fields
+    if (!newsId) {
+      return res.status(400).json({
+        success: false,
+        message: "newsId is required",
+      });
+    }
+
+    // Find the news to update
+    const news = await News.findById(newsId);
+    if (!news) {
+      return res.status(404).json({
+        success: false,
+        message: "News not found",
+        newsId: newsId,
+      });
+    }
+
+    console.log("News found:", news.content?.title || news.metadata?.title);
+    console.log("Current news author agentId:", news.author.agentId);
+
+    // Store old agent info for later cleanup
+    const oldAgentId = news.author.agentId;
+    let agentChanged = false;
+
+    // Handle agent change if new agentId is provided
+    if (agentId && agentId !== oldAgentId) {
+      console.log("=== AGENT CHANGE DETECTED ===");
+      console.log("Old Agent ID:", oldAgentId);
+      console.log("New Agent ID:", agentId);
+
+      // Find the new agent using custom agentId
+      const newAgent = await Agent.findOne({ agentId: agentId });
+
+      if (!newAgent) {
+        return res.status(404).json({
+          success: false,
+          message: "New agent not found",
+          requestedAgentId: agentId,
+        });
+      }
+
+      if (!newAgent.isActive) {
+        return res.status(400).json({
+          success: false,
+          message: "New agent is not active",
+          agentId: agentId,
+        });
+      }
+
+      console.log("New agent found:", newAgent.agentName);
+
+      // Update news's author info with new agent
+      news.author.agentId = newAgent.agentId;
+      news.author.agentName = newAgent.agentName;
+      news.author.agentEmail = newAgent.email;
+
+      agentChanged = true;
+    }
+
+    // Parse and update news data if provided
+    if (parsedData) {
+      let updateData;
+
+      try {
+        if (typeof parsedData === "string") {
+          console.log("Parsing string data...");
+
+          if (parsedData.trim().startsWith("{")) {
+            console.log("Detected JSON format");
+            updateData = JSON.parse(parsedData);
+          } else {
+            console.log("Detected plain text format, using text parser");
+            updateData = News.parseTextToNewsStructure(parsedData);
+          }
+        } else if (typeof parsedData === "object" && parsedData !== null) {
+          console.log("Data already parsed as object");
+          updateData = parsedData;
+        } else {
+          throw new Error(`Invalid parsedData type: ${typeof parsedData}`);
+        }
+      } catch (parseError) {
+        console.error("Parse error:", parseError.message);
+        return res.status(400).json({
+          success: false,
+          message: "Failed to parse news data",
+          error: parseError.message,
+          receivedType: typeof parsedData,
+        });
+      }
+
+      console.log("=== PARSED UPDATE DATA ===");
+      console.log("Update data keys:", Object.keys(updateData || {}));
+      console.log("Content title:", updateData?.content?.title);
+      console.log("Sections count:", updateData?.content?.sections?.length);
+      console.log("=== END PARSED DATA ===");
+
+      // Update metadata fields if provided
+      if (updateData.metadata) {
+        if (updateData.metadata.title) {
+          news.metadata.title = updateData.metadata.title;
+        }
+        if (updateData.metadata.description !== undefined) {
+          news.metadata.description = updateData.metadata.description;
+        }
+        if (updateData.metadata.author) {
+          news.metadata.author = updateData.metadata.author;
+        }
+        if (updateData.metadata.tags) {
+          news.metadata.tags = Array.isArray(updateData.metadata.tags)
+            ? updateData.metadata.tags
+            : [];
+        }
+        if (updateData.metadata.category !== undefined) {
+          news.metadata.category = updateData.metadata.category;
+        }
+        if (updateData.metadata.slug !== undefined) {
+          news.metadata.slug = updateData.metadata.slug;
+        }
+      }
+
+      // Update content fields if provided
+      if (updateData.content) {
+        if (updateData.content.title) {
+          news.content.title = updateData.content.title;
+        }
+        if (
+          updateData.content.sections &&
+          Array.isArray(updateData.content.sections)
+        ) {
+          news.content.sections = updateData.content.sections;
+        }
+        if (updateData.content.wordCount !== undefined) {
+          news.content.wordCount = updateData.content.wordCount;
+        }
+        if (updateData.content.readingTime !== undefined) {
+          news.content.readingTime = updateData.content.readingTime;
+        }
+      }
+
+      // Update SEO fields if provided
+      if (updateData.seo) {
+        if (updateData.seo.metaTitle !== undefined) {
+          news.seo.metaTitle = updateData.seo.metaTitle;
+        }
+        if (updateData.seo.metaDescription !== undefined) {
+          news.seo.metaDescription = updateData.seo.metaDescription;
+        }
+        if (updateData.seo.keywords) {
+          news.seo.keywords = Array.isArray(updateData.seo.keywords)
+            ? updateData.seo.keywords
+            : [];
+        }
+      }
+
+      // Update status if provided
+      if (updateData.status) {
+        news.status = updateData.status;
+
+        // Handle publish/unpublish based on status
+        if (updateData.status === "published" && !news.isPublished) {
+          news.isPublished = true;
+          news.publishedAt = new Date();
+        } else if (updateData.status === "draft" && news.isPublished) {
+          news.isPublished = false;
+          news.publishedAt = null;
+        }
+      }
+    }
+
+    // Handle image update
+    if (req.file) {
+      console.log("Updating news image...");
+
+      // Delete old image if it exists and isn't placeholder
+      if (
+        news.image &&
+        news.image.path &&
+        news.image.filename !== "placeholder.jpg"
+      ) {
+        const oldImagePath = news.image.path;
+        try {
+          await fs.unlink(oldImagePath);
+          console.log("Deleted old image:", oldImagePath);
+        } catch (err) {
+          console.log("Could not delete old image:", err.message);
+        }
+      }
+
+      // Update with new image
+      news.image = {
+        filename: req.file.filename,
+        originalName: req.file.originalname,
+        mimetype: req.file.mimetype,
+        size: req.file.size,
+        path: req.file.path,
+      };
+      console.log("Image updated:", req.file.filename);
+    }
+
+    // Save the updated news
+    console.log("Saving updated news...");
+    await news.save();
+    console.log("News saved successfully");
+
+    // Prepare news data for agent array
+    const newsForAgent = {
+      newsId: news._id,
+      title: news.content?.title || news.metadata?.title || "Untitled",
+      slug: news.metadata?.slug || "",
+      image: {
+        filename: news.image?.filename || "placeholder.jpg",
+        originalName: news.image?.originalName || "placeholder.jpg",
+        mimetype: news.image?.mimetype || "image/jpeg",
+        size: news.image?.size || 0,
+        path: news.image?.path || "uploads/News/placeholder.jpg",
+      },
+      isPublished: news.isPublished || false,
+      publishedAt: news.publishedAt || null,
+      createdAt: news.createdAt,
+      updatedAt: news.updatedAt,
+    };
+
+    // Handle agent reassignment
+    if (agentChanged) {
+      console.log("=== HANDLING AGENT REASSIGNMENT ===");
+
+      // Remove news from old agent
+      try {
+        const oldAgent = await Agent.findOne({ agentId: oldAgentId });
+        if (oldAgent) {
+          // Remove news from old agent's news array
+          if (oldAgent.news && Array.isArray(oldAgent.news)) {
+            oldAgent.news = oldAgent.news.filter(
+              (n) => n.newsId.toString() !== news._id.toString()
+            );
+            await oldAgent.save({ validateBeforeSave: false });
+            console.log("Removed news from old agent:", oldAgent.agentName);
+          }
+        }
+      } catch (oldAgentError) {
+        console.log(
+          "Warning: Could not remove news from old agent:",
+          oldAgentError.message
+        );
+      }
+
+      // Add news to new agent
+      try {
+        const newAgent = await Agent.findOne({ agentId: news.author.agentId });
+        if (newAgent && typeof newAgent.addOrUpdateNews === "function") {
+          newAgent.addOrUpdateNews(newsForAgent);
+          await newAgent.save({ validateBeforeSave: false });
+          console.log("Added news to new agent:", newAgent.agentName);
+        }
+      } catch (newAgentError) {
+        console.log(
+          "Warning: Could not add news to new agent:",
+          newAgentError.message
+        );
+      }
+    } else {
+      // No agent change, just update news entry in current agent
+      try {
+        const currentAgent = await Agent.findOne({ agentId: news.author.agentId });
+        if (currentAgent && typeof currentAgent.addOrUpdateNews === "function") {
+          currentAgent.addOrUpdateNews(newsForAgent);
+          await currentAgent.save({ validateBeforeSave: false });
+          console.log("Updated news entry in current agent:", currentAgent.agentName);
+        }
+      } catch (agentError) {
+        console.log(
+          "Warning: Could not update agent's news entry:",
+          agentError.message
+        );
+      }
+    }
+
+    console.log("=== NEWS UPDATE SUCCESS ===");
+
+    res.status(200).json({
+      success: true,
+      message: agentChanged 
+        ? "News updated and reassigned to new agent successfully" 
+        : "News updated successfully",
+      data: {
+        news: news,
+        stats: news.getContentStats ? news.getContentStats() : undefined,
+        linkedAgent: {
+          agentId: news.author.agentId,
+          agentName: news.author.agentName,
+          email: news.author.agentEmail,
+        },
+        agentChanged: agentChanged,
+      },
+    });
+  } catch (error) {
+    console.error("=== NEWS UPDATE ERROR ===");
+    console.error("Error name:", error.name);
+    console.error("Error message:", error.message);
+    console.error("Error stack:", error.stack);
+
+    console.error("Request body keys:", Object.keys(req.body));
+    console.error("NewsId:", req.body.newsId);
+    console.error("AgentId:", req.body.agentId);
+    console.error("Has parsedData:", !!req.body.parsedData);
+    console.error("Has file:", !!req.file);
+
+    if (req.file) {
+      try {
+        await fs.unlink(req.file.path);
+        console.log("Cleaned up uploaded file");
+      } catch (unlinkError) {
+        console.log("Could not delete uploaded file:", unlinkError.message);
+      }
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Failed to update news",
+      error: error.message,
+      errorName: error.name,
+      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
     });
   }
 };
@@ -358,202 +741,72 @@ const getSingleNews = async (req, res) => {
   }
 };
 
-const updateNews = async (req, res) => {
+const getNewsByTags = async (req, res) => {
   try {
-    console.log("=== UPDATE NEWS DEBUG ===");
-    console.log("req.body:", req.body);
-    console.log("req.file:", req.file);
-    console.log("========================");
+    const { tags, limit = 6, excludeId } = req.query;
 
-    if (!req.body) {
+    if (!tags) {
       return res.status(400).json({
         success: false,
-        message: "Request body is undefined - multer middleware not working",
+        message: "Tags are required. Pass tags as comma-separated values.",
+        example: "/api/news/by-tags?tags=dubai,uae,property&limit=6"
       });
     }
 
-    const {
-      newsId,
-      title,
-      heading,
-      desc1,
-      desc2,
-      desc3,
-      agentId,
-      tags,
-      isPublished,
-    } = req.body;
+    // Convert comma-separated tags to array and normalize
+    const tagsArray = tags
+      .split(',')
+      .map(tag => tag.trim().toLowerCase())
+      .filter(tag => tag.length > 0);
 
-    console.log("Extracted data:", {
-      newsId,
-      title,
-      heading,
-      desc1,
-      desc2,
-      desc3,
-      agentId,
-      tags,
-      isPublished,
+    // Build query to find news with any of these tags
+    const query = {
+      'metadata.tags': { $in: tagsArray },
+      // isPublished: true // Only show published news
+    };
+
+    // Exclude the current news if excludeId is provided
+    if (excludeId) {
+      query._id = { $ne: excludeId };
+    }
+
+    // Find news and sort by most matching tags
+    const news = await News.find(query)
+      .populate('author.agentId', 'agentName email imageUrl designation')
+      .sort({ createdAt: -1 })
+      .limit(parseInt(limit));
+
+    // Calculate match score for each news (how many tags match)
+    const newsWithScore = news.map(item => {
+      const matchingTags = item.metadata.tags.filter(tag => 
+        tagsArray.includes(tag.toLowerCase())
+      );
+      return {
+        ...item.toObject(),
+        matchScore: matchingTags.length,
+        matchingTags: matchingTags
+      };
     });
 
-    if (!newsId) {
-      return res.status(400).json({
-        success: false,
-        message: "News ID is required",
-      });
-    }
+    // Sort by match score (most matching tags first)
+    newsWithScore.sort((a, b) => b.matchScore - a.matchScore);
 
-    const news = await News.findById(newsId);
-    if (!news) {
-      return res.status(404).json({
-        success: false,
-        message: "News not found",
-      });
-    }
-
-    let oldAgent = null;
-    let newAgent = null;
-
-    // Handle agent change
-    if (agentId && agentId !== news.author.agentId.toString()) {
-      newAgent = await Agent.findById(agentId);
-      if (!newAgent) {
-        return res.status(404).json({
-          success: false,
-          message: "New agent not found",
-          agentId: agentId,
-        });
-      }
-
-      if (!newAgent.isActive) {
-        return res.status(400).json({
-          success: false,
-          message: "New agent is not active",
-          agentId: agentId,
-        });
-      }
-
-      oldAgent = await Agent.findById(news.author.agentId);
-    }
-
-    // Update news fields
-    if (title !== undefined && title.trim()) {
-      news.metadata.title = title.trim();
-      news.content.title = title.trim();
-    }
-
-    if (heading !== undefined && heading.trim()) {
-      if (news.content.sections && news.content.sections.length > 0) {
-        news.content.sections[0].heading = heading.trim();
-      }
-    }
-
-    if (desc1 !== undefined && desc1.trim()) {
-      if (desc1.trim().length < 10) {
-        return res.status(400).json({
-          success: false,
-          message: "First description must be at least 10 characters",
-        });
-      }
-      if (news.content.sections && news.content.sections.length > 0) {
-        if (news.content.sections[0].content && news.content.sections[0].content.length > 0) {
-          news.content.sections[0].content[0].content = desc1.trim();
-        }
-      }
-    }
-
-    if (desc2 !== undefined) {
-      const content = desc2 && desc2.trim() ? desc2.trim() : null;
-      if (content && news.content.sections && news.content.sections.length > 0) {
-        if (news.content.sections[0].subsections && news.content.sections[0].subsections.length > 0) {
-          if (news.content.sections[0].subsections[0].content && news.content.sections[0].subsections[0].content.length > 0) {
-            news.content.sections[0].subsections[0].content[0].content = content;
-          }
-        }
-      }
-    }
-
-    if (desc3 !== undefined) {
-      const content = desc3 && desc3.trim() ? desc3.trim() : null;
-      if (content && news.content.sections && news.content.sections.length > 0) {
-        if (news.content.sections[0].subsections && news.content.sections[0].subsections.length > 1) {
-          if (news.content.sections[0].subsections[1].content && news.content.sections[0].subsections[1].content.length > 0) {
-            news.content.sections[0].subsections[1].content[0].content = content;
-          }
-        }
-      }
-    }
-
-    // Update agent if changed
-    if (newAgent) {
-      news.author = {
-        agentId: newAgent._id,
-        agentName: newAgent.agentName,
-        agentEmail: newAgent.email,
-      };
-    }
-
-    // Handle publish/unpublish
-    if (isPublished !== undefined) {
-      const publishStatus = isPublished === "true" || isPublished === true;
-      if (publishStatus && !news.isPublished) {
-        news.publish();
-      } else if (!publishStatus && news.isPublished) {
-        news.unpublish();
-      }
-    }
-
-    // Handle tags update
-    if (tags !== undefined) {
-      if (Array.isArray(tags)) {
-        news.metadata.tags = tags
-          .map((tag) => tag.trim().toLowerCase())
-          .filter((tag) => tag.length > 0);
-      } else if (typeof tags === "string") {
-        news.metadata.tags = tags
-          .split(",")
-          .map((tag) => tag.trim().toLowerCase())
-          .filter((tag) => tag.length > 0);
-      } else {
-        news.metadata.tags = [];
-      }
-    }
-
-    // Handle image update
-    if (req.file) {
-      if (news.image && news.image.path) {
-        await fs.unlink(news.image.path).catch((err) => {
-          console.log("Could not delete old image:", err.message);
-        });
-      }
-
-      news.image = {
-        filename: req.file.filename,
-        originalName: req.file.originalname,
-        mimetype: req.file.mimetype,
-        size: req.file.size,
-        path: req.file.path,
-      };
-    }
-
-    await news.save();
+    console.log(`Found ${newsWithScore.length} news with matching tags`);
 
     res.status(200).json({
       success: true,
-      message: "News updated successfully",
-      data: news,
+      message: "News with matching tags fetched successfully",
+      count: newsWithScore.length,
+      searchedTags: tagsArray,
+      data: newsWithScore
     });
+
   } catch (error) {
-    console.error("Error updating news:", error.message);
-
-    if (req.file) {
-      await fs.unlink(req.file.path).catch(() => {});
-    }
-
+    console.error("Error fetching news by tags:", error.message);
     res.status(500).json({
       success: false,
-      message: "Failed to update news",
-      error: error.message,
+      message: "Failed to fetch news by tags",
+      error: error.message
     });
   }
 };
@@ -580,16 +833,27 @@ const deleteNews = async (req, res) => {
       });
     }
 
+    // Remove news from agent's news array
+    const agent = await Agent.findOne({ agentId: news.author.agentId });
+    if (agent && agent.news && Array.isArray(agent.news)) {
+      agent.news = agent.news.filter(
+        (n) => n.newsId.toString() !== news._id.toString()
+      );
+      await agent.save();
+      console.log(`✅ News removed from agent ${agent.agentName}`);
+    }
+
     // Delete associated image
     if (news.image && news.image.path) {
       await fs.unlink(news.image.path).catch(() => {});
     }
 
+    // Delete the news
     await News.findByIdAndDelete(newsId);
 
     res.status(200).json({
       success: true,
-      message: "News deleted successfully",
+      message: "News deleted successfully and unlinked from agent",
     });
   } catch (error) {
     console.error("Error deleting news:", error.message);
@@ -613,6 +877,7 @@ const getNewsByAgent = async (req, res) => {
       });
     }
 
+    // Build filter
     let filter = { "author.agentId": agentId };
     if (published !== undefined) {
       filter.isPublished = published === "true";
@@ -652,6 +917,27 @@ const getNewsByAgent = async (req, res) => {
   }
 };
 
+const getAgentsWithNews = async (req, res) => {
+  try {
+    const { limit = 20 } = req.query;
+
+    const agentsWithNews = await Agent.findAgentsWithNews(parseInt(limit));
+
+    res.status(200).json({
+      success: true,
+      message: "Agents with news fetched successfully",
+      data: agentsWithNews,
+    });
+  } catch (error) {
+    console.error("Error fetching agents with news:", error.message);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch agents with news",
+      error: error.message,
+    });
+  }
+};
+
 const toggleNewsPublishStatus = async (req, res) => {
   try {
     const { newsId } = req.params;
@@ -679,6 +965,22 @@ const toggleNewsPublishStatus = async (req, res) => {
       result = await news.unpublish();
     }
 
+    // Update agent's news entry
+    const agent = await Agent.findOne({ agentId: news.author.agentId });
+    if (agent) {
+      const newsForAgent = {
+        newsId: news._id,
+        title: news.content.title,
+        slug: news.metadata.slug,
+        isPublished: news.isPublished,
+        publishedAt: news.publishedAt,
+      };
+      if (typeof agent.addOrUpdateNews === "function") {
+        agent.addOrUpdateNews(newsForAgent);
+        await agent.save();
+      }
+    }
+
     res.status(200).json({
       success: true,
       message: `News ${publish ? "published" : "unpublished"} successfully`,
@@ -694,13 +996,16 @@ const toggleNewsPublishStatus = async (req, res) => {
   }
 };
 
+// Export all functions and upload middleware
 module.exports = {
   GetAllNews,
   getSingleNews,
+  getNewsByTags,
   createNews,
   updateNews,
   deleteNews,
   getNewsByAgent,
+  getAgentsWithNews,
   toggleNewsPublishStatus,
   upload,
 };
