@@ -198,6 +198,7 @@ const createNews = async (req, res) => {
     console.log("Agent found:", agent.agentName);
     console.log("Agent custom ID:", agent.agentId);
     console.log("Agent MongoDB _id:", agent._id);
+    console.log("Agent Image URL:", agent.imageUrl); // ✅ Log the image URL
 
     // Handle image upload
     let imageData = null;
@@ -247,6 +248,7 @@ const createNews = async (req, res) => {
         agentId: agent.agentId, // Store custom agentId (e.g., "AGENT_12345")
         agentName: agent.agentName,
         agentEmail: agent.email,
+        agentImage: agent.imageUrl, // ✅ FIXED: Now saving agent image URL
       },
       image: imageData,
       status: newsData.status || "draft",
@@ -257,6 +259,7 @@ const createNews = async (req, res) => {
     const savedNews = await newNews.save();
     console.log("News saved with ID:", savedNews._id);
     console.log("News author.agentId:", savedNews.author.agentId);
+    console.log("News author.agentImage:", savedNews.author.agentImage); // ✅ Log saved image
 
     // Add news to agent's news array (if such method exists)
     try {
@@ -297,6 +300,7 @@ const createNews = async (req, res) => {
           agentId: agent.agentId,
           agentName: agent.agentName,
           email: agent.email,
+          imageUrl: agent.imageUrl, // ✅ Include in response
         },
       },
     });
@@ -368,10 +372,25 @@ const updateNews = async (req, res) => {
 
     console.log("News found:", news.content?.title || news.metadata?.title);
     console.log("Current news author agentId:", news.author.agentId);
+    console.log("Current news author agentImage:", news.author.agentImage);
 
     // Store old agent info for later cleanup
     const oldAgentId = news.author.agentId;
     let agentChanged = false;
+
+    // ✅ NEW: Check if agent image is missing and update it from current agent
+    if (!news.author.agentImage && news.author.agentId) {
+      console.log("=== AGENT IMAGE MISSING - FETCHING FROM CURRENT AGENT ===");
+      try {
+        const currentAgent = await Agent.findOne({ agentId: news.author.agentId });
+        if (currentAgent && currentAgent.imageUrl) {
+          news.author.agentImage = currentAgent.imageUrl;
+          console.log("Updated missing agent image from current agent:", currentAgent.imageUrl);
+        }
+      } catch (imageUpdateError) {
+        console.log("Could not fetch agent image:", imageUpdateError.message);
+      }
+    }
 
     // Handle agent change if new agentId is provided
     if (agentId && agentId !== oldAgentId) {
@@ -399,11 +418,13 @@ const updateNews = async (req, res) => {
       }
 
       console.log("New agent found:", newAgent.agentName);
+      console.log("New agent image URL:", newAgent.imageUrl);
 
       // Update news's author info with new agent
       news.author.agentId = newAgent.agentId;
       news.author.agentName = newAgent.agentName;
       news.author.agentEmail = newAgent.email;
+      news.author.agentImage = newAgent.imageUrl; // ✅ Save agent image URL
 
       agentChanged = true;
     }
@@ -550,8 +571,10 @@ const updateNews = async (req, res) => {
 
     // Save the updated news
     console.log("Saving updated news...");
+    console.log("News author agentImage before save:", news.author.agentImage);
     await news.save();
     console.log("News saved successfully");
+    console.log("News author agentImage after save:", news.author.agentImage);
 
     // Prepare news data for agent array
     const newsForAgent = {
@@ -640,6 +663,7 @@ const updateNews = async (req, res) => {
           agentId: news.author.agentId,
           agentName: news.author.agentName,
           email: news.author.agentEmail,
+          imageUrl: news.author.agentImage, // ✅ Include in response
         },
         agentChanged: agentChanged,
       },

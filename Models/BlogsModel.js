@@ -1,224 +1,244 @@
-const mongoose = require('mongoose');
+const mongoose = require("mongoose");
 const Schema = mongoose.Schema;
 
 // Content Item Schema for flexible content types
-const contentItemSchema = new Schema({
-  type: {
-    type: String,
-    enum: ['paragraph', 'bullet_point', 'numbered_item'],
-    required: true
+const contentItemSchema = new Schema(
+  {
+    type: {
+      type: String,
+      enum: ["paragraph", "bullet_point", "numbered_item"],
+      required: true,
+    },
+    content: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    formatting: {
+      type: String,
+      enum: ["paragraph", "bullet", "numbered"],
+      required: true,
+    },
   },
-  content: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  formatting: {
-    type: String,
-    enum: ['paragraph', 'bullet', 'numbered'],
-    required: true
-  }
-}, { _id: false });
+  { _id: false }
+);
 
 // Subsection Schema
-const subsectionSchema = new Schema({
-  id: {
-    type: String,
-    required: true
+const subsectionSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      default: "subsection",
+    },
+    heading: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    level: {
+      type: Number,
+      default: 3,
+    },
+    content: [contentItemSchema],
   },
-  type: {
-    type: String,
-    default: 'subsection'
-  },
-  heading: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  level: {
-    type: Number,
-    default: 3
-  },
-  content: [contentItemSchema]
-}, { _id: false });
+  { _id: false }
+);
 
 // Section Schema
-const sectionSchema = new Schema({
-  id: {
-    type: String,
-    required: true
+const sectionSchema = new Schema(
+  {
+    id: {
+      type: String,
+      required: true,
+    },
+    type: {
+      type: String,
+      default: "section",
+    },
+    heading: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    level: {
+      type: Number,
+      enum: [2, 3],
+      required: true,
+    },
+    content: [contentItemSchema],
+    subsections: [subsectionSchema],
   },
-  type: {
-    type: String,
-    default: 'section'
-  },
-  heading: {
-    type: String,
-    required: true,
-    trim: true
-  },
-  level: {
-    type: Number,
-    enum: [2, 3],
-    required: true
-  },
-  content: [contentItemSchema],
-  subsections: [subsectionSchema]
-}, { _id: false });
+  { _id: false }
+);
 
 // Main Blog Schema
-const blogSchema = new Schema({
-  // Original ID from parser
-  originalId: {
-    type: String,
-    // unique: true,
-    // sparse: true
-  },
-  
-  // Metadata
-  metadata: {
-    title: {
-      type: String,
-      required: [true, 'Blog title is required'],
-      trim: true,
-      // maxlength: [255, 'Title cannot exceed 255 characters']
-    },
-    description: {
-      type: String,
-      trim: true,
-      // maxlength: [500, 'Description cannot exceed 500 characters']
-    },
-    author: {
-      type: String,
-      trim: true
-    },
-    tags: [{
-      type: String,
-      trim: true,
-      lowercase: true
-    }],
-    category: {
-      type: String,
-      trim: true
-    },
-    slug: {
+const blogSchema = new Schema(
+  {
+    // Original ID from parser
+    originalId: {
       type: String,
       // unique: true,
-      sparse: true, 
-      lowercase: true,
-      index: true
-    }
-  },
+      // sparse: true
+    },
 
-  // Content Structure
-  content: {
-    title: {
-      type: String,
-      required: [true, 'Content title is required'],
-      trim: true,
-      // maxlength: [255, 'Content title cannot exceed 255 characters']
+    // Metadata
+    metadata: {
+      title: {
+        type: String,
+        required: [true, "Blog title is required"],
+        trim: true,
+        // maxlength: [255, 'Title cannot exceed 255 characters']
+      },
+      description: {
+        type: String,
+        trim: true,
+        // maxlength: [500, 'Description cannot exceed 500 characters']
+      },
+      author: {
+        type: String,
+        trim: true,
+      },
+      tags: [
+        {
+          type: String,
+          trim: true,
+          lowercase: true,
+        },
+      ],
+      category: {
+        type: String,
+        trim: true,
+      },
+      slug: {
+        type: String,
+        // unique: true,
+        sparse: true,
+        lowercase: true,
+        index: true,
+      },
     },
-    sections: [sectionSchema],
-    wordCount: {
-      type: Number,
-      default: 0,
-      min: 0
-    },
-    readingTime: {
-      type: Number,
-      default: 0,
-      min: 0
-    }
-  },
 
-  // SEO
-  seo: {
-    metaTitle: {
-      type: String,
-      trim: true,
-      // maxlength: [60, 'Meta title should not exceed 60 characters for SEO']
+    // Content Structure
+    content: {
+      title: {
+        type: String,
+        required: [true, "Content title is required"],
+        trim: true,
+        // maxlength: [255, 'Content title cannot exceed 255 characters']
+      },
+      sections: [sectionSchema],
+      wordCount: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
+      readingTime: {
+        type: Number,
+        default: 0,
+        min: 0,
+      },
     },
-    metaDescription: {
-      type: String,
-      trim: true,
-      // maxlength: [160, 'Meta description should not exceed 160 characters for SEO']
-    },
-    keywords: [{
-      type: String,
-      trim: true,
-      lowercase: true
-    }]
-  },
 
-  // Agent Integration (keeping existing functionality)
-  author: {
-    agentId: {
-      type: String,
-      // ref: 'Agent',
-      required: [true, 'Agent ID is required']
+    // SEO
+    seo: {
+      metaTitle: {
+        type: String,
+        trim: true,
+        // maxlength: [60, 'Meta title should not exceed 60 characters for SEO']
+      },
+      metaDescription: {
+        type: String,
+        trim: true,
+        // maxlength: [160, 'Meta description should not exceed 160 characters for SEO']
+      },
+      keywords: [
+        {
+          type: String,
+          trim: true,
+          lowercase: true,
+        },
+      ],
     },
-    agentName: {
-      type: String,
-      required: [true, 'Agent name is required'],
-      trim: true
-    },
-    agentEmail: {
-      type: String,
-      required: [true, 'Agent email is required'],
-      trim: true,
-      lowercase: true
-    }
-  },
 
-  // Image (keeping existing functionality)
-  image: {
-    filename: {
-      type: String,
-      required: [true, 'Image filename is required']
+    // Agent Integration (keeping existing functionality)
+    author: {
+      agentId: {
+        type: String,
+        required: [true, "Agent ID is required"],
+      },
+      agentName: {
+        type: String,
+        required: [true, "Agent name is required"],
+        trim: true,
+      },
+      agentEmail: {
+        type: String,
+        required: [true, "Agent email is required"],
+        trim: true,
+        lowercase: true,
+      },
+      agentImage: {
+        // ✅ NEWLY ADDED FIELD
+        type: String,
+        default: null,
+        trim: true,
+      },
     },
-    originalName: String,
-    mimetype: String,
-    size: Number,
-    path: String
-  },
 
-  // Publishing
-  status: {
-    type: String,
-    enum: ['draft', 'published', 'archived'],
-    default: 'draft'
+    // Image (keeping existing functionality)
+    image: {
+      filename: {
+        type: String,
+        required: [true, "Image filename is required"],
+      },
+      originalName: String,
+      mimetype: String,
+      size: Number,
+      path: String,
+    },
+
+    // Publishing
+    status: {
+      type: String,
+      enum: ["draft", "published", "archived"],
+      default: "draft",
+    },
+    isPublished: {
+      type: Boolean,
+      default: false,
+    },
+    publishedAt: {
+      type: Date,
+      default: null,
+    },
   },
-  isPublished: {
-    type: Boolean,
-    default: false
-  },
-  publishedAt: {
-    type: Date,
-    default: null
+  {
+    timestamps: true,
+    toJSON: { virtuals: true },
+    toObject: { virtuals: true },
   }
-
-}, {
-  timestamps: true,
-  toJSON: { virtuals: true },
-  toObject: { virtuals: true }
-});
+);
 
 // Indexes for performance
-blogSchema.index({ 'author.agentId': 1 });
-blogSchema.index({ 'author.agentEmail': 1 });
+blogSchema.index({ "author.agentId": 1 });
+blogSchema.index({ "author.agentEmail": 1 });
 blogSchema.index({ createdAt: -1 });
 blogSchema.index({ isPublished: 1 });
-blogSchema.index({ 'metadata.slug': 1 }, { sparse: true }); // Make index sparse
+blogSchema.index({ "metadata.slug": 1 }, { sparse: true }); // Make index sparse
 blogSchema.index({ status: 1 });
-blogSchema.index({ 'content.wordCount': 1 });
-blogSchema.index({ 'seo.keywords': 1 });
+blogSchema.index({ "content.wordCount": 1 });
+blogSchema.index({ "seo.keywords": 1 });
 
 // Virtual to populate agent details
-blogSchema.virtual('agentDetails', {
-  ref: 'Agent',
-  localField: 'author.agentId',
-  foreignField: '_id',
-  justOne: true
+blogSchema.virtual("agentDetails", {
+  ref: "Agent",
+  localField: "author.agentId",
+  foreignField: "_id",
+  justOne: true,
 });
 
 // Helper function to generate unique slug
@@ -229,45 +249,54 @@ async function generateUniqueSlug(title, BlogModel, excludeId = null) {
 
   const baseSlug = title
     .toLowerCase()
-    .replace(/[^a-zA-Z0-9 ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim('-');
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim("-");
 
   let slug = baseSlug;
   let counter = 1;
-  
+
   while (true) {
-    const query = { 'metadata.slug': slug };
+    const query = { "metadata.slug": slug };
     if (excludeId) {
       query._id = { $ne: excludeId };
     }
-    
+
     const existingBlog = await BlogModel.findOne(query);
     if (!existingBlog) {
       break;
     }
-    
+
     slug = `${baseSlug}-${counter}`;
     counter++;
   }
-  
+
   return slug;
 }
 
 // Pre-save middleware to generate slug and sync metadata
-blogSchema.pre('save', async function(next) {
+blogSchema.pre("save", async function (next) {
   try {
     // Generate slug if title changed or new document
-    if (this.isModified('content.title') || this.isModified('metadata.title') || this.isNew || !this.metadata.slug) {
+    if (
+      this.isModified("content.title") ||
+      this.isModified("metadata.title") ||
+      this.isNew ||
+      !this.metadata.slug
+    ) {
       const title = this.content.title || this.metadata.title;
-      this.metadata.slug = await generateUniqueSlug(title, this.constructor, this._id);
+      this.metadata.slug = await generateUniqueSlug(
+        title,
+        this.constructor,
+        this._id
+      );
     }
 
     // Sync title between metadata and content
-    if (this.isModified('content.title') && this.content.title) {
+    if (this.isModified("content.title") && this.content.title) {
       this.metadata.title = this.content.title;
-    } else if (this.isModified('metadata.title') && this.metadata.title) {
+    } else if (this.isModified("metadata.title") && this.metadata.title) {
       this.content.title = this.metadata.title;
     }
 
@@ -278,92 +307,89 @@ blogSchema.pre('save', async function(next) {
 });
 
 // Static method to find blogs by agent
-blogSchema.statics.findByAgent = function(agentId) {
-  return this.find({ 'author.agentId': agentId }).sort({ createdAt: -1 });
+blogSchema.statics.findByAgent = function (agentId) {
+  return this.find({ "author.agentId": agentId }).sort({ createdAt: -1 });
 };
 
 // Static method to find published blogs by agent
-blogSchema.statics.findPublishedByAgent = function(agentId) {
+blogSchema.statics.findPublishedByAgent = function (agentId) {
   return this.find({
-    'author.agentId': agentId,
-    isPublished: true
+    "author.agentId": agentId,
+    isPublished: true,
   }).sort({ createdAt: -1 });
 };
 
 // Static method to search blogs by content
-blogSchema.statics.searchByContent = function(searchTerm, options = {}) {
+blogSchema.statics.searchByContent = function (searchTerm, options = {}) {
   const { limit = 10, skip = 0, publishedOnly = false } = options;
-  
-  const searchRegex = new RegExp(searchTerm, 'i');
+
+  const searchRegex = new RegExp(searchTerm, "i");
   let query = {
     $or: [
-      { 'content.title': searchRegex },
-      { 'metadata.title': searchRegex },
-      { 'seo.metaTitle': searchRegex },
-      { 'seo.metaDescription': searchRegex },
-      { 'content.sections.heading': searchRegex },
-      { 'content.sections.content.content': searchRegex },
-      { 'content.sections.subsections.heading': searchRegex },
-      { 'content.sections.subsections.content.content': searchRegex }
-    ]
+      { "content.title": searchRegex },
+      { "metadata.title": searchRegex },
+      { "seo.metaTitle": searchRegex },
+      { "seo.metaDescription": searchRegex },
+      { "content.sections.heading": searchRegex },
+      { "content.sections.content.content": searchRegex },
+      { "content.sections.subsections.heading": searchRegex },
+      { "content.sections.subsections.content.content": searchRegex },
+    ],
   };
 
   if (publishedOnly) {
     query.isPublished = true;
   }
 
-  return this.find(query)
-    .sort({ createdAt: -1 })
-    .limit(limit)
-    .skip(skip);
+  return this.find(query).sort({ createdAt: -1 }).limit(limit).skip(skip);
 };
 
 // Static method to find by slug
-blogSchema.statics.findBySlug = function(slug) {
-  return this.findOne({ 'metadata.slug': slug });
+blogSchema.statics.findBySlug = function (slug) {
+  return this.findOne({ "metadata.slug": slug });
 };
 
 // Instance method to publish blog
-blogSchema.methods.publish = function() {
+blogSchema.methods.publish = function () {
   this.isPublished = true;
-  this.status = 'published';
+  this.status = "published";
   this.publishedAt = new Date();
   return this.save();
 };
 
 // Instance method to unpublish blog
-blogSchema.methods.unpublish = function() {
+blogSchema.methods.unpublish = function () {
   this.isPublished = false;
-  this.status = 'draft';
+  this.status = "draft";
   this.publishedAt = null;
   return this.save();
 };
 
 // Instance method to archive blog
-blogSchema.methods.archive = function() {
-  this.status = 'archived';
+blogSchema.methods.archive = function () {
+  this.status = "archived";
   this.isPublished = false;
   return this.save();
 };
 
 // Instance method to get content statistics
-blogSchema.methods.getContentStats = function() {
+blogSchema.methods.getContentStats = function () {
   let bulletPoints = 0;
   let paragraphs = 0;
   let headings = 0;
 
-  this.content.sections.forEach(section => {
+  this.content.sections.forEach((section) => {
     headings++;
-    section.content.forEach(item => {
-      if (item.type === 'bullet_point') bulletPoints++;
-      if (item.type === 'paragraph') paragraphs++;
+    section.content.forEach((item) => {
+      if (item.type === "bullet_point") bulletPoints++;
+      if (item.type === "paragraph") paragraphs++;
     });
 
-    section.subsections.forEach(subsection => {
+    section.subsections.forEach((subsection) => {
       headings++;
-      subsection.content.forEach(item => {
-        if (item.type === 'bullet_point') bulletPoints++;
-        if (item.type === 'paragraph') paragraphs++;
+      subsection.content.forEach((item) => {
+        if (item.type === "bullet_point") bulletPoints++;
+        if (item.type === "paragraph") paragraphs++;
       });
     });
   });
@@ -374,154 +400,160 @@ blogSchema.methods.getContentStats = function() {
     headings,
     paragraphs,
     bulletPoints,
-    sections: this.content.sections.length
+    sections: this.content.sections.length,
   };
 };
 
 // Instance method to extract plain text content
-blogSchema.methods.getPlainText = function() {
-  let text = this.content.title + '\n\n';
+blogSchema.methods.getPlainText = function () {
+  let text = this.content.title + "\n\n";
 
-  this.content.sections.forEach(section => {
-    text += section.heading + '\n';
-    section.content.forEach(item => {
-      text += item.content + '\n';
+  this.content.sections.forEach((section) => {
+    text += section.heading + "\n";
+    section.content.forEach((item) => {
+      text += item.content + "\n";
     });
 
-    section.subsections.forEach(subsection => {
-      text += subsection.heading + '\n';
-      subsection.content.forEach(item => {
-        text += item.content + '\n';
+    section.subsections.forEach((subsection) => {
+      text += subsection.heading + "\n";
+      subsection.content.forEach((item) => {
+        text += item.content + "\n";
       });
     });
-    text += '\n';
+    text += "\n";
   });
 
   return text.trim();
 };
 
 // Instance method to update slug
-blogSchema.methods.updateSlug = async function(newTitle) {
-  this.metadata.slug = await generateUniqueSlug(newTitle, this.constructor, this._id);
+blogSchema.methods.updateSlug = async function (newTitle) {
+  this.metadata.slug = await generateUniqueSlug(
+    newTitle,
+    this.constructor,
+    this._id
+  );
   return this.save();
 };
-
 
 // Add this right before your module.exports line
 
 //
-blogSchema.statics.parseTextToBlogStructure = function(textContent) {
-  const lines = textContent.split('\n').filter(line => line.trim());
-  
-  let title = '';
-  let metaTitle = '';
-  let metaDescription = '';
-  let author = '';
+blogSchema.statics.parseTextToBlogStructure = function (textContent) {
+  const lines = textContent.split("\n").filter((line) => line.trim());
+
+  let title = "";
+  let metaTitle = "";
+  let metaDescription = "";
+  let author = "";
   let tags = []; // Added tags array
   const sections = [];
   let currentSection = null;
   let currentSubsection = null;
-  
+
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i].trim();
-    
+
     // Extract meta information
-    if (line.startsWith('Meta title:')) {
-      metaTitle = line.replace('Meta title:', '').trim();
+    if (line.startsWith("Meta title:")) {
+      metaTitle = line.replace("Meta title:", "").trim();
       continue;
     }
-    
-    if (line.startsWith('Meta description:')) {
-      metaDescription = line.replace('Meta description:', '').trim();
+
+    if (line.startsWith("Meta description:")) {
+      metaDescription = line.replace("Meta description:", "").trim();
       continue;
     }
-    
+
     // NEW: Extract tags
-    if (line.startsWith('Tags:')) {
-      const tagsString = line.replace('Tags:', '').trim();
+    if (line.startsWith("Tags:")) {
+      const tagsString = line.replace("Tags:", "").trim();
       // Split by comma, trim each tag, filter empty, and convert to lowercase
       tags = tagsString
-        .split(',')
-        .map(tag => tag.trim())
-        .filter(tag => tag.length > 0)
-        .map(tag => tag.toLowerCase());
-      console.log('Parsed tags:', tags);
+        .split(",")
+        .map((tag) => tag.trim())
+        .filter((tag) => tag.length > 0)
+        .map((tag) => tag.toLowerCase());
+      console.log("Parsed tags:", tags);
       continue;
     }
-    
-    if (line.startsWith('[Author:')) {
-      author = line.replace('[Author:', '').replace(']', '').trim();
+
+    if (line.startsWith("[Author:")) {
+      author = line.replace("[Author:", "").replace("]", "").trim();
       continue;
     }
-    
+
     // Extract main title (H1)
-    if (line.includes('(H1)')) {
-      title = line.replace('(H1)', '').trim();
+    if (line.includes("(H1)")) {
+      title = line.replace("(H1)", "").trim();
       continue;
     }
-    
+
     // Handle sections (H2)
-    if (line.includes('(H2)')) {
+    if (line.includes("(H2)")) {
       // Save current subsection if exists
       if (currentSubsection && currentSection) {
         currentSection.subsections.push(currentSubsection);
         currentSubsection = null;
       }
-      
+
       // Save current section if exists
       if (currentSection) {
         sections.push(currentSection);
       }
-      
+
       // Create new section
-      const heading = line.replace('(H2)', '').trim();
+      const heading = line.replace("(H2)", "").trim();
       currentSection = {
         id: `id_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'section',
+        type: "section",
         heading: heading,
         level: 2,
         content: [],
-        subsections: []
+        subsections: [],
       };
       continue;
     }
-    
+
     // Handle sections (H3)
-    if (line.includes('(H3)')) {
+    if (line.includes("(H3)")) {
       // Save current subsection if exists
       if (currentSubsection && currentSection) {
         currentSection.subsections.push(currentSubsection);
         currentSubsection = null;
       }
-      
+
       // Save current section if exists
       if (currentSection) {
         sections.push(currentSection);
       }
-      
+
       // Create new section
-      const heading = line.replace('(H3)', '').trim();
+      const heading = line.replace("(H3)", "").trim();
       currentSection = {
         id: `id_${Math.random().toString(36).substr(2, 9)}`,
-        type: 'section',
+        type: "section",
         heading: heading,
         level: 2,
         content: [],
-        subsections: []
+        subsections: [],
       };
       continue;
     }
-    
+
     // Handle bullet points
-    if (line.startsWith('●') || line.startsWith('•') || line.startsWith('-')) {
-      const content = line.replace(/^[●•-]\s*/, '').replace('(Bullet)', '').trim();
+    if (line.startsWith("●") || line.startsWith("•") || line.startsWith("-")) {
+      const content = line
+        .replace(/^[●•-]\s*/, "")
+        .replace("(Bullet)", "")
+        .trim();
       if (content) {
         const contentItem = {
-          type: 'bullet_point',
+          type: "bullet_point",
           content: content,
-          formatting: 'bullet'
+          formatting: "bullet",
         };
-        
+
         if (currentSubsection) {
           currentSubsection.content.push(contentItem);
         } else if (currentSection) {
@@ -530,17 +562,17 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       }
       continue;
     }
-    
+
     // Handle paragraphs
-    if (line.includes('(P)') || line.includes('(p)')) {
-      const content = line.replace(/\(P\)/g, '').replace(/\(p\)/g, '').trim();
+    if (line.includes("(P)") || line.includes("(p)")) {
+      const content = line.replace(/\(P\)/g, "").replace(/\(p\)/g, "").trim();
       if (content) {
         const contentItem = {
-          type: 'paragraph',
+          type: "paragraph",
           content: content,
-          formatting: 'paragraph'
+          formatting: "paragraph",
         };
-        
+
         if (currentSubsection) {
           currentSubsection.content.push(contentItem);
         } else if (currentSection) {
@@ -549,15 +581,15 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       }
       continue;
     }
-    
+
     // Handle regular content lines (treat as paragraphs)
-    if (line && !line.includes('(') && currentSection) {
+    if (line && !line.includes("(") && currentSection) {
       const contentItem = {
-        type: 'paragraph',
+        type: "paragraph",
         content: line,
-        formatting: 'paragraph'
+        formatting: "paragraph",
       };
-      
+
       if (currentSubsection) {
         currentSubsection.content.push(contentItem);
       } else {
@@ -565,7 +597,7 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       }
     }
   }
-  
+
   // Save final subsection and section
   if (currentSubsection && currentSection) {
     currentSection.subsections.push(currentSubsection);
@@ -573,28 +605,28 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
   if (currentSection) {
     sections.push(currentSection);
   }
-  
+
   // Calculate word count
   let wordCount = 0;
-  sections.forEach(section => {
-    section.content.forEach(item => {
-      wordCount += item.content.split(' ').length;
+  sections.forEach((section) => {
+    section.content.forEach((item) => {
+      wordCount += item.content.split(" ").length;
     });
-    section.subsections.forEach(subsection => {
-      subsection.content.forEach(item => {
-        wordCount += item.content.split(' ').length;
+    section.subsections.forEach((subsection) => {
+      subsection.content.forEach((item) => {
+        wordCount += item.content.split(" ").length;
       });
     });
   });
-  
+
   // Generate slug
   const slug = title
     .toLowerCase()
-    .replace(/[^a-zA-Z0-9 ]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim('-');
-  
+    .replace(/[^a-zA-Z0-9 ]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-")
+    .trim("-");
+
   return {
     id: `id_${Math.random().toString(36).substr(2, 9)}`,
     metadata: {
@@ -602,22 +634,22 @@ blogSchema.statics.parseTextToBlogStructure = function(textContent) {
       description: metaDescription,
       author: author,
       tags: tags, // Now includes parsed tags
-      category: '',
-      slug: `${slug}-${Date.now()}`
+      category: "",
+      slug: `${slug}-${Date.now()}`,
     },
     content: {
       title: title || metaTitle,
       sections: sections,
       wordCount: wordCount,
-      readingTime: Math.ceil(wordCount / 200)
+      readingTime: Math.ceil(wordCount / 200),
     },
     seo: {
       metaTitle: metaTitle,
       metaDescription: metaDescription,
-      keywords: tags.slice(0, 5) // Use first 5 tags as keywords
+      keywords: tags.slice(0, 5), // Use first 5 tags as keywords
     },
-    status: 'draft'
+    status: "draft",
   };
 };
 // Export with overwrite protection
-module.exports = mongoose.models.Blog || mongoose.model('Blog', blogSchema);
+module.exports = mongoose.models.Blog || mongoose.model("Blog", blogSchema);

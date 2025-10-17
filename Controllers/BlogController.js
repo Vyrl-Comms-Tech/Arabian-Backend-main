@@ -57,6 +57,294 @@ const upload = multer({
 });
 
 
+// const createBlog = async (req, res) => {
+//   try {
+//     console.log("=== BLOG CREATION START ===");
+//     console.log("Request body keys:", Object.keys(req.body));
+//     console.log("Request file:", req.file ? "Present" : "Not present");
+
+//     if (req.file) {
+//       console.log("=== FILE UPLOAD DEBUG ===");
+//       console.log("File details:", {
+//         filename: req.file.filename,
+//         originalname: req.file.originalname,
+//         mimetype: req.file.mimetype,
+//         size: req.file.size,
+//         destination: req.file.destination,
+//         path: req.file.path,
+//       });
+
+//       // Verify file actually exists at the path
+//       const fileExists = fsSync.existsSync(req.file.path);
+//       console.log("File exists at path:", fileExists);
+//       console.log("Full file path:", req.file.path);
+//     }
+
+//     // Extract and validate basic fields
+//     const { parsedData, agentId } = req.body;
+//     console.log(agentId, "Agent ID");
+
+//     console.log("Raw parsedData type:", typeof parsedData);
+//     console.log(
+//       "Raw parsedData:",
+//       parsedData ? parsedData.substring(0, 100) + "..." : "null/undefined"
+//     );
+//     console.log("AgentId:", agentId);
+
+//     // Validate required fields
+//     if (!parsedData) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "parsedData is required",
+//         received: { parsedData, agentId },
+//       });
+//     }
+
+//     if (!agentId) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "agentId is required",
+//         received: { parsedData: "present", agentId },
+//       });
+//     }
+
+//     // Parse the data
+//     let blogData;
+//     try {
+//       if (typeof parsedData === "string") {
+//         console.log("Parsing string data...");
+
+//         if (parsedData.trim().startsWith("{")) {
+//           console.log("Detected JSON format");
+//           blogData = JSON.parse(parsedData);
+//         } else {
+//           console.log("Detected plain text format, using text parser");
+//           blogData = Blog.parseTextToBlogStructure(parsedData);
+//         }
+//       } else if (typeof parsedData === "object" && parsedData !== null) {
+//         console.log("Data already parsed as object");
+//         blogData = parsedData;
+//       } else {
+//         throw new Error(`Invalid parsedData type: ${typeof parsedData}`);
+//       }
+//     } catch (parseError) {
+//       console.error("Parse error:", parseError.message);
+//       return res.status(400).json({
+//         success: false,
+//         message: "Failed to parse blog data",
+//         error: parseError.message,
+//         receivedType: typeof parsedData,
+//         receivedData: parsedData ? parsedData.substring(0, 200) : "null",
+//       });
+//     }
+
+//     console.log("=== PARSED BLOG DATA ===");
+//     console.log("Blog data keys:", Object.keys(blogData || {}));
+//     console.log("Content title:", blogData?.content?.title);
+//     console.log("Metadata title:", blogData?.metadata?.title);
+//     console.log("Sections count:", blogData?.content?.sections?.length);
+//     console.log("=== END PARSED DATA ===");
+
+//     // Validate parsed blog data structure
+//     if (!blogData || typeof blogData !== "object") {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Parsed data must be an object",
+//         received: blogData,
+//       });
+//     }
+
+//     if (!blogData.content || !blogData.content.title) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Blog content and title are required",
+//         received: {
+//           hasContent: !!blogData.content,
+//           contentTitle: blogData.content?.title,
+//           blogDataKeys: Object.keys(blogData),
+//         },
+//       });
+//     }
+
+//     if (
+//       !blogData.content.sections ||
+//       !Array.isArray(blogData.content.sections)
+//     ) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Blog content sections are required and must be an array",
+//         received: {
+//           hasSections: !!blogData.content.sections,
+//           sectionsType: typeof blogData.content.sections,
+//           sectionsLength: Array.isArray(blogData.content.sections)
+//             ? blogData.content.sections.length
+//             : "not array",
+//         },
+//       });
+//     }
+
+//     // Find the agent using the custom agentId
+//     console.log("Finding agent with custom agentId:", agentId);
+//     const agent = await Agent.findOne({ agentId: agentId });
+
+//     if (!agent) {
+//       const sampleAgents = await Agent.find(
+//         { isActive: true },
+//         "agentId agentName"
+//       ).limit(5);
+//       return res.status(404).json({
+//         success: false,
+//         message: "Agent not found",
+//         searchedFor: agentId,
+//         availableAgents: sampleAgents.map((a) => ({
+//           agentId: a.agentId,
+//           agentName: a.agentName,
+//         })),
+//       });
+//     }
+
+//     if (!agent.isActive) {
+//       return res.status(400).json({
+//         success: false,
+//         message: "Agent is not active",
+//         agentId: agentId,
+//       });
+//     }
+
+//     console.log("Agent found:", agent.agentName);
+//     console.log("Agent custom ID:", agent.agentId);
+//     console.log("Agent MongoDB _id:", agent._id);
+//     console.log("Agent Image:", agent._id);
+
+//     // Handle image upload
+//     let imageData = null;
+//     if (req.file) {
+//       console.log("File uploaded successfully to:", req.file.path);
+//       imageData = {
+//         filename: req.file.filename,
+//         originalName: req.file.originalname,
+//         mimetype: req.file.mimetype,
+//         size: req.file.size,
+//         path: req.file.path,
+//       };
+//     } else {
+//       console.log("No file uploaded, using placeholder");
+//       imageData = {
+//         filename: "placeholder.jpg",
+//         originalName: "placeholder.jpg",
+//         mimetype: "image/jpeg",
+//         size: 0,
+//         path: "uploads/Blogs/placeholder.jpg",
+//       };
+//     }
+
+//     // Create the blog document - STORE CUSTOM agentId instead of MongoDB _id
+//     const newBlog = new Blog({
+//       originalId:
+//         blogData.id ||
+//         `blog_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+//       metadata: {
+//         title: blogData.metadata?.title || blogData.content?.title,
+//         description:
+//           blogData.metadata?.description || blogData.seo?.metaDescription || "",
+//         author: blogData.metadata?.author || agent.agentName,
+//         tags: blogData.metadata?.tags || [],
+//         category: blogData.metadata?.category || "",
+//         slug: blogData.metadata?.slug || null,
+//       },
+//       content: {
+//         title: blogData.content.title,
+//         sections: blogData.content.sections || [],
+//         wordCount: blogData.content.wordCount || 0,
+//         readingTime: blogData.content.readingTime || 0,
+//       },
+//       seo: {
+//         metaTitle: blogData.seo?.metaTitle || "",
+//         metaDescription: blogData.seo?.metaDescription || "",
+//         keywords: blogData.seo?.keywords || [],
+//       },
+//       author: {
+//         agentId: agent.agentId, // Store custom agentId (e.g., "AGENT_12345")
+//         agentName: agent.agentName,
+//         agentEmail: agent.email,
+//         agentImage: agent.imageUrl,
+//       },
+//       image: imageData,
+//       status: blogData.status || "draft",
+//       isPublished: blogData.status === "published" || false,
+//     });
+
+//     // Save the blog
+//     console.log("Saving blog to database...");
+//     const savedBlog = await newBlog.save();
+//     console.log("Blog saved with ID:", savedBlog._id);
+//     console.log("Blog author.agentId:", savedBlog.author.agentId);
+
+//     // Add blog to agent's blogs array
+//     try {
+//       const blogForAgent = {
+//         blogId: savedBlog._id,
+//         title: savedBlog.content.title,
+//         slug: savedBlog.metadata.slug,
+//         image: savedBlog.image,
+//         isPublished: savedBlog.isPublished,
+//         publishedAt: savedBlog.publishedAt,
+//         createdAt: savedBlog.createdAt,
+//         updatedAt: savedBlog.updatedAt,
+//       };
+
+//       if (typeof agent.addOrUpdateBlog === "function") {
+//         agent.addOrUpdateBlog(blogForAgent);
+//         await agent.save({ validateBeforeSave: false });
+//         console.log("Blog added to agent successfully");
+//       } else {
+//         console.log("Warning: addOrUpdateBlog method not available on agent");
+//       }
+//     } catch (agentUpdateError) {
+//       console.log(
+//         "Warning: Could not update agent's blog array:",
+//         agentUpdateError.message
+//       );
+//     }
+
+//     console.log("=== BLOG CREATION SUCCESS ===");
+
+//     res.status(201).json({
+//       success: true,
+//       message: "Blog created successfully from parsed content",
+//       data: {
+//         blog: savedBlog,
+//         stats: savedBlog.getContentStats(),
+//         linkedAgent: {
+//           agentId: agent.agentId,
+//           agentName: agent.agentName,
+//           email: agent.email,
+//         },
+//       },
+//     });
+//   } catch (error) {
+//     console.error("=== BLOG CREATION ERROR ===");
+//     console.error("Error message:", error.message);
+//     console.error("Error stack:", error.stack);
+
+//     // Delete uploaded file if blog creation fails
+//     if (req.file) {
+//       try {
+//         await fs.unlink(req.file.path);
+//         console.log("Cleaned up uploaded file");
+//       } catch (unlinkError) {
+//         console.log("Could not delete uploaded file:", unlinkError.message);
+//       }
+//     }
+
+//     res.status(500).json({
+//       success: false,
+//       message: "Failed to create blog from parsed content",
+//       error: error.message,
+//       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+//     });
+//   }
+// };
 const createBlog = async (req, res) => {
   try {
     console.log("=== BLOG CREATION START ===");
@@ -214,6 +502,7 @@ const createBlog = async (req, res) => {
     console.log("Agent found:", agent.agentName);
     console.log("Agent custom ID:", agent.agentId);
     console.log("Agent MongoDB _id:", agent._id);
+    console.log("Agent Image URL:", agent.imageUrl); // Log the image URL
 
     // Handle image upload
     let imageData = null;
@@ -266,6 +555,7 @@ const createBlog = async (req, res) => {
         agentId: agent.agentId, // Store custom agentId (e.g., "AGENT_12345")
         agentName: agent.agentName,
         agentEmail: agent.email,
+        agentImage: agent.imageUrl, // ✅ FIXED: Now saving agent image URL
       },
       image: imageData,
       status: blogData.status || "draft",
@@ -277,6 +567,7 @@ const createBlog = async (req, res) => {
     const savedBlog = await newBlog.save();
     console.log("Blog saved with ID:", savedBlog._id);
     console.log("Blog author.agentId:", savedBlog.author.agentId);
+    console.log("Blog author.agentImage:", savedBlog.author.agentImage); // ✅ Log saved image
 
     // Add blog to agent's blogs array
     try {
@@ -317,6 +608,7 @@ const createBlog = async (req, res) => {
           agentId: agent.agentId,
           agentName: agent.agentName,
           email: agent.email,
+          imageUrl: agent.imageUrl, // Include in response
         },
       },
     });
@@ -424,6 +716,7 @@ const updateBlog = async (req, res) => {
       blog.author.agentId = newAgent.agentId;
       blog.author.agentName = newAgent.agentName;
       blog.author.agentEmail = newAgent.email;
+      blog.author.agentImage = newAgent.imageUrl;
 
       agentChanged = true;
     }

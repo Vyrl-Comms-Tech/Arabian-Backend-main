@@ -167,6 +167,11 @@ const newsSchema = new Schema({
       required: [true, 'Agent email is required'],
       trim: true,
       lowercase: true
+    },
+    agentImage: {  // ✅ NEWLY ADDED FIELD
+      type: String,
+      default: null,
+      trim: true
     }
   },
 
