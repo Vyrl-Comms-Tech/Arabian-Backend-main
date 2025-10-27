@@ -19,6 +19,8 @@ app.use(express.urlencoded({ extended: true }));
 // Serve uploaded files statically
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// test
+
 // ---- Multer setup ---- 
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
